@@ -18,10 +18,8 @@ Built with Photon (iMessage and voice) and [Browser Use](https://browser-use.com
 
 ## Features
 
-| # | Feature | Issue | Owner |
-|---|---|---|---|
-| 1 | Chrome extension | [#2](https://github.com/jamesmcaleer/landline/issues/2) | James |
-| 2 | Session service | [#3](https://github.com/jamesmcaleer/landline/issues/3) | Caius |
-| 3 | Site agent | [#4](https://github.com/jamesmcaleer/landline/issues/4) | Caius |
-| 4 | Orchestrator | [#5](https://github.com/jamesmcaleer/landline/issues/5) | James |
-| 5 | Write verification | [#6](https://github.com/jamesmcaleer/landline/issues/6) | Not decided |
+- [Chrome extension](https://github.com/jamesmcaleer/landline/issues/2) (James)
+- [Session service](https://github.com/jamesmcaleer/landline/issues/3) (Caius)
+- [Site agent](https://github.com/jamesmcaleer/landline/issues/4) (Caius)
+- [Orchestrator](https://github.com/jamesmcaleer/landline/issues/5) (James)
+- [Write verification](https://github.com/jamesmcaleer/landline/issues/6) (owner not decided)
