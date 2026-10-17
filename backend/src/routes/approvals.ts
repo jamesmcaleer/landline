@@ -22,7 +22,7 @@ import { approvals, connections, emit, newId, passkey, save, setPasskey, type St
 
 export const approvalsRouter = Router();
 
-const APPROVAL_LIFETIME_MS = 10 * 60 * 1000;
+const APPROVAL_LIFETIME_MS = 5 * 60 * 1000;
 const LONG_POLL_MS = 25_000;
 const EXPIRY_CHECK_MS = 5_000;
 const APPROVAL_KINDS: readonly ApprovalKind[] = ["payment", "plan_change", "order", "settings", "other"];

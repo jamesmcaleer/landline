@@ -21,7 +21,7 @@ export interface Approval {
   status: ApprovalStatus;
   message: string | null;       // decline message, "expired", or "connection removed"
   createdAt: string;
-  expiresAt: string;            // createdAt + 10 minutes
+  expiresAt: string;            // createdAt + 5 minutes
 }
 
 export interface ApiError { error: string }
