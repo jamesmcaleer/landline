@@ -56,11 +56,19 @@ Dashboard events stream over `ws://localhost:3000/ws/dashboard`.
 | --- | --- |
 | `PORT` | HTTP port, default 3000 |
 | `PUBLIC_URL` | Base URL for approval links, and the URL the agent uses to reach this server. Default `http://localhost:$PORT` |
-| `LANDLINE_PHONE` | Number shown by `GET /config` |
+| `LANDLINE_PHONE` | The number users call. `GET /config` returns it with a `tel:` link |
 | `BROWSER_PROVIDER` | `local` or `chalk` |
 | `CALLBACK_URL` | Where the backend POSTs callbacks (below). Optional |
+| `PHOTON_PROJECT_ID`, `PHOTON_API_KEY` | Photon project and API key, for texting approval links |
+| `VERIFIER_PHONE` | Who gets approval links by iMessage. Often a caretaker, not the caller. Optional |
 | `FACTORY_API_KEY` | Factory key. The Droid SDK reads it from the environment |
 | `DROID_EXEC_PATH` | Overrides the `droid` binary. Default: `backend/bin/droid`, then `droid` on PATH |
+
+## Approval texts
+
+When `VERIFIER_PHONE` is set, every new approval is also texted to that number from the project's shared Photon iMessage line, with the Face ID link (`backend/src/photon.ts`). This happens whether or not `CALLBACK_URL` is set.
+
+A shared line only texts a phone that has an active assignment in the Photon project and has texted its assigned line at least once. Add the verifier in Photon, then have them send any text to the number they were assigned. Until then, the send fails and is logged.
 
 ## Agent per connection
 
