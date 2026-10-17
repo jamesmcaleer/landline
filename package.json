@@ -1,0 +1,8 @@
+{
+  "name": "landline",
+  "private": true,
+  "workspaces": ["shared", "agent", "backend", "tools/replay"],
+  "scripts": {
+    "typecheck": "npm run typecheck -w shared && npm run typecheck -w backend"
+  }
+}

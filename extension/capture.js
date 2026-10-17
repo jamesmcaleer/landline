@@ -1,5 +1,5 @@
 // Captures the active tab's logged-in session into the shape defined in
-// shared/session.ts (and explained in SESSION_FORMAT.md). Runs from the popup,
+// shared/src/session.ts (and explained in SESSION_FORMAT.md). Runs from the popup,
 // which has the cookies + scripting permissions. Nothing here is site-specific.
 
 const FORMAT_VERSION = 1;

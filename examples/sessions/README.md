@@ -1,7 +1,7 @@
 # Example sessions
 
 Real captures from the extension, in the `SessionExport` format
-(`shared/session.ts`). They exist so the session service can be built and tested
+(`shared/src/session.ts`). They exist so the session service can be built and tested
 against actual data before the extension's upload path is wired up.
 
 Both are logins to **public demo accounts with shared test credentials** — no

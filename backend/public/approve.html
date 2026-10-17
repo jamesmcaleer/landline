@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Landline approval</title>
+  <script src="https://unpkg.com/@simplewebauthn/browser@13.1.0/dist/bundle/index.umd.min.js"></script>
+  <style>
+    :root { color-scheme: light dark; font-family: -apple-system, system-ui, sans-serif; }
+    body { margin: 0; padding: 24px 16px; max-width: 420px; margin-inline: auto; }
+    h1 { font-size: 1.1rem; margin: 0 0 16px; }
+    .summary { font-size: 1.3rem; font-weight: 600; margin: 8px 0; }
+    .meta { color: gray; margin: 4px 0; }
+    button { display: block; width: 100%; padding: 14px; margin-top: 12px; font-size: 1rem; border-radius: 10px; border: 1px solid gray; background: transparent; color: inherit; }
+    button.primary { background: #0a7cff; border-color: #0a7cff; color: white; }
+    button.small { font-size: 0.85rem; padding: 8px; margin-top: 40px; border: none; color: #d33; }
+    textarea { width: 100%; box-sizing: border-box; margin-top: 12px; padding: 10px; font: inherit; border-radius: 10px; }
+    #error { color: #d33; margin-top: 12px; }
+    [hidden] { display: none; }
+  </style>
+</head>
+<body>
+  <h1>Landline</h1>
+  <p id="message" hidden></p>
+
+  <main id="request" hidden>
+    <div class="meta" id="site"></div>
+    <div class="summary" id="summary"></div>
+    <div class="meta" id="kind"></div>
+    <div class="meta" id="countdown"></div>
+
+    <button class="primary" id="approve">Approve</button>
+    <textarea id="declineMessage" rows="2" placeholder="Reason for declining (optional)"></textarea>
+    <button id="decline">Decline</button>
+    <button class="small" id="revoke">Revoke this connection</button>
+    <div id="error"></div>
+  </main>
+
+  <script>
+    const token = location.pathname.split("/")[2];
+    const base = "/a/" + token;
+    const $ = (id) => document.getElementById(id);
+    let expiresAt = 0;
+    let countdownTimer;
+
+    function showMessage(text) {
+      clearInterval(countdownTimer);
+      $("request").hidden = true;
+      $("message").hidden = false;
+      $("message").textContent = text;
+    }
+
+    function tickCountdown() {
+      const seconds = Math.max(0, Math.round((expiresAt - Date.now()) / 1000));
+      $("countdown").textContent = "Expires in " + Math.floor(seconds / 60) + ":" + String(seconds % 60).padStart(2, "0");
+      if (seconds === 0) showMessage("This request expired or was already answered.");
+    }
+
+    async function post(path, body) {
+      const res = await fetch(base + path, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body ?? {}),
+      });
+      if (res.status === 410) {
+        showMessage("This request expired or was already answered.");
+        throw new Error("gone");
+      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Request failed");
+      return data;
+    }
+
+    // Runs Face ID. Registers a passkey the first time, then authenticates.
+    async function runWebAuthn(hasPasskey) {
+      const options = await post("/options");
+      return hasPasskey
+        ? SimpleWebAuthnBrowser.startAuthentication({ optionsJSON: options })
+        : SimpleWebAuthnBrowser.startRegistration({ optionsJSON: options });
+    }
+
+    async function decide(decision, needsWebAuthn) {
+      $("error").textContent = "";
+      try {
+        const body = { decision };
+        if (needsWebAuthn) body.webauthn = await runWebAuthn(state.hasPasskey);
+        if (decision === "declined") body.message = $("declineMessage").value;
+        await post("/decision", body);
+        showMessage("Done. You can close this tab.");
+      } catch (err) {
+        if (err.message !== "gone") $("error").textContent = err.message;
+      }
+    }
+
+    let state;
+    async function init() {
+      const res = await fetch(base + "/state");
+      if (!res.ok) {
+        showMessage("This request expired or was already answered.");
+        return;
+      }
+      state = await res.json();
+      $("site").textContent = state.site.domain;
+      $("summary").textContent = state.approval.summary;
+      $("kind").textContent = "Type: " + state.approval.kind.replace("_", " ");
+      expiresAt = Date.parse(state.approval.expiresAt);
+      $("request").hidden = false;
+      tickCountdown();
+      countdownTimer = setInterval(tickCountdown, 1000);
+
+      $("approve").onclick = () => decide("approved", true);
+      $("decline").onclick = () => decide("declined", false);
+      $("revoke").onclick = () => decide("revoked", true);
+    }
+    init();
+  </script>
+</body>
+</html>

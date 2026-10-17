@@ -1,0 +1,31 @@
+{
+  "name": "backend",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "postinstall": "sh scripts/fetch-droid.sh",
+    "fetch-droid": "sh scripts/fetch-droid.sh",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "start": "node dist/index.js",
+    "dev": "node --watch dist/index.js"
+  },
+  "dependencies": {
+    "@factory/droid-sdk": "^0.9.1",
+    "@landline/shared": "*",
+    "@playwright/mcp": "0.0.83",
+    "@simplewebauthn/server": "^13.1.1",
+    "dotenv": "^16.4.7",
+    "express": "^5.1.0",
+    "playwright": "^1.49.1",
+    "ws": "^8.18.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^26.6.5",
+    "@types/ws": "^8.5.13",
+    "typescript": "^5.9.3"
+  }
+}
