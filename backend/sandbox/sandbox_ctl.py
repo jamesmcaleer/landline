@@ -5,6 +5,7 @@
   sandbox_ctl.py status <name>
 """
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -30,13 +31,18 @@ def start(connection_id: str, ws_url: str, token: str) -> None:
         .pip_install(["websockets"])
         .add_local_file(str(HERE / "entrypoint.sh"), "/app/entrypoint.sh", mode=0o755, strategy="copy")
         .add_local_file(str(HERE / "relay.py"), "/app/relay.py", strategy="copy")
+        .add_local_file(str(HERE / "proxyfwd.py"), "/app/proxyfwd.py", strategy="copy")
     )
     name = sandbox_name(connection_id)
+    env = {"LANDLINE_WS_URL": ws_url, "LANDLINE_TOKEN": token}
+    upstream = os.environ.get("PROXY_UPSTREAM", "")  # secret: passed via env, not argv
+    if upstream:
+        env["PROXY_UPSTREAM"] = upstream
     sandbox = Sandbox(
         image=image,
         name=name,
         entrypoint=["/app/entrypoint.sh"],
-        env={"LANDLINE_WS_URL": ws_url, "LANDLINE_TOKEN": token},
+        env=env,
         cpu="2",
         memory="4Gi",
         compute_class=ComputeClass.HOST,

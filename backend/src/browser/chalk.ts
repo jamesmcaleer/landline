@@ -14,15 +14,24 @@ const RELAY_TIMEOUT_MS = 180_000;
 const CTL_TIMEOUT_MS = 600_000;
 
 /** Runs sandbox_ctl.py with the venv python. The Chalk CLI login supplies the credentials. */
-function ctl(...args: string[]): Promise<string> {
+function ctl(extraEnv: Record<string, string>, ...args: string[]): Promise<string> {
   if (!existsSync(PYTHON)) return Promise.reject(new Error("Chalk helper not set up: run backend/scripts/setup-chalk.sh"));
-  const env = { ...process.env, PATH: `${join(homedir(), ".chalk/bin")}${delimiter}${process.env.PATH ?? ""}` };
+  const env = { ...process.env, ...extraEnv, PATH: `${join(homedir(), ".chalk/bin")}${delimiter}${process.env.PATH ?? ""}` };
   return new Promise((resolve, reject) => {
     execFile(PYTHON, [CTL, ...args], { env, timeout: CTL_TIMEOUT_MS, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
       if (err) reject(new Error(`sandbox_ctl ${args[0]} failed: ${stderr.trim() || err.message}`));
       else resolve(stdout.trim());
     });
   });
+}
+
+/** Per-connection sticky residential proxy (secret; never log it). Empty when RESI_PROXY_HOST is unset. */
+function proxyEnv(connectionId: string): Record<string, string> {
+  const host = process.env.RESI_PROXY_HOST;
+  if (!host) return {};
+  const sessid = connectionId.replace(/[^a-zA-Z0-9]/g, "");
+  const user = `${process.env.RESI_PROXY_USER ?? ""}__sessid.${sessid}`;
+  return { PROXY_UPSTREAM: `http://${user}:${process.env.RESI_PROXY_PASS ?? ""}@${host}:${process.env.RESI_PROXY_PORT ?? "823"}` };
 }
 
 function publicWsBase(): string {
@@ -47,7 +56,7 @@ export class ChalkProvider implements BrowserProvider {
     registerToken(connectionId, token);
     try {
       const wsUrl = `${publicWsBase()}/ws/sandbox/${connectionId}`;
-      const out = await ctl("start", connectionId, wsUrl, token);
+      const out = await ctl(proxyEnv(connectionId), "start", connectionId, wsUrl, token);
       const { name } = JSON.parse(out.split("\n").pop() ?? "{}") as { name?: string };
       if (!name) throw new Error(`sandbox_ctl start printed no sandbox name: ${out}`);
       this.sandboxes.set(connectionId, name);
@@ -71,6 +80,6 @@ export class ChalkProvider implements BrowserProvider {
     const name = this.sandboxes.get(connectionId);
     this.sandboxes.delete(connectionId);
     dropToken(connectionId);
-    if (name) await ctl("stop", name);
+    if (name) await ctl({}, "stop", name);
   }
 }
