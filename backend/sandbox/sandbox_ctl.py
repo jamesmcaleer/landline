@@ -20,7 +20,13 @@ def start(connection_id: str, ws_url: str, token: str) -> None:
 
     image = (
         Image.debian_slim("3.12")
-        .apt_install(["chromium", "fonts-liberation", "curl", "ca-certificates"])
+        # Real Google Chrome (amd64 .deb) so Client Hints report the "Google Chrome" brand,
+        # not "Chromium" or "Google Chrome for Testing". Runs headful under Xvfb.
+        .run_commands(
+            "apt-get update && apt-get install -y wget gnupg ca-certificates curl fonts-liberation xvfb"
+            " && wget -q -O /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb"
+            " && apt-get install -y /tmp/chrome.deb && rm /tmp/chrome.deb && rm -rf /var/lib/apt/lists/*"
+        )
         .pip_install(["websockets"])
         .add_local_file(str(HERE / "entrypoint.sh"), "/app/entrypoint.sh", mode=0o755, strategy="copy")
         .add_local_file(str(HERE / "relay.py"), "/app/relay.py", strategy="copy")
@@ -31,8 +37,8 @@ def start(connection_id: str, ws_url: str, token: str) -> None:
         name=name,
         entrypoint=["/app/entrypoint.sh"],
         env={"LANDLINE_WS_URL": ws_url, "LANDLINE_TOKEN": token},
-        cpu="1",
-        memory="2Gi",
+        cpu="2",
+        memory="4Gi",
         compute_class=ComputeClass.HOST,
         restart_policy=RestartPolicy.ALWAYS,
     )
