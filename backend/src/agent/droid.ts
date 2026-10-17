@@ -146,6 +146,7 @@ export async function createConnectionAgent(opts: { connectionId: string; cdpUrl
         name: "playwright",
         command: "npx",
         args: [`@playwright/mcp@${PLAYWRIGHT_MCP_VERSION}`, "--cdp-endpoint", cdpUrl],
+        env: {},
       },
       landline,
     ],
