@@ -3,7 +3,8 @@ import { captureSession } from "./capture.js";
 // The backend base URL defaults to localhost but can be changed in Settings.
 const DEFAULT_API_BASE = "http://localhost:3000";
 const API_BASE_KEY = "landline.apiBase";
-const CONFIG_KEY = "landline.config"; // cached { phone, smsLink } for instant display
+const CONFIG_KEY = "landline.config"; // cached { phone } for instant display
+const ADDED_HOLD_MS = 650; // how long the button shows "Connected" before the card changes
 let apiBase = DEFAULT_API_BASE;
 
 // Real extension when the chrome APIs exist; otherwise a plain web page for
@@ -94,7 +95,13 @@ function mockAccounts() {
 
 // --- QR --------------------------------------------------------------------
 
-// Real QR from the backend's sms link, rendered as an SVG path on an n x n grid.
+// Contact card for the QR. The iPhone camera opens it as a new contact, so the
+// number gets saved as "Landline Assistant" instead of typed in by hand.
+function contactCard(phone) {
+  return ["BEGIN:VCARD", "VERSION:3.0", "N:Assistant;Landline;;;", "FN:Landline Assistant", `TEL;TYPE=CELL:${phone}`, "END:VCARD"].join("\n");
+}
+
+// Real QR, rendered as an SVG path on an n x n grid.
 function qrSvg(text) {
   const qr = window.qrcode(0, "M");
   qr.addData(text);
@@ -111,6 +118,8 @@ const ic = {
   message: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4C7 4 3 7.1 3 11c0 2.1 1.2 4 3.1 5.3L5.5 20l3.9-2.1c.8.2 1.7.3 2.6.3 5 0 9-3.1 9-7s-4-7.2-9-7.2z"/></svg>`,
   spinner: `<svg class="spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"/></svg>`,
   check: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`,
+  // Same check, drawn in with a stroke animation.
+  checkDraw: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="draw" pathLength="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg>`,
   warn: `<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#9a5800" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l9.5 16.5h-19z"/><path d="M12 10v4.5"/><path d="M12 17.5h.01"/></svg>`,
   globe: `<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg>`,
   back: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>`,
@@ -131,10 +140,11 @@ function tileHtml(obj, cls = "tile") {
 const state = {
   screen: "home", // home | scan | manage | error
   adding: false,
+  justAdded: false, // plays the connected animation on the next render only
   offline: false, // true when the backend can't be reached
   site: null,
   accounts: [],
-  config: null, // { phone, smsLink } from the backend
+  config: null, // { phone } from the backend
   confirming: null, // domain being revoke-confirmed
 };
 
@@ -158,6 +168,7 @@ function render() {
 
   renderFooter();
   bind();
+  state.justAdded = false;
 }
 
 function settingsScreen() {
@@ -191,7 +202,7 @@ function renderFooter() {
   footEl.hidden = !state.config;
   if (!state.config) return;
   footEl.innerHTML = `
-    <span class="foot-label">Text</span>
+    <span class="foot-label">Call</span>
     <span class="foot-number">${formatPhone(state.config.phone)}</span>
     <button class="x-btn l-ghost foot-icon" data-act="copy" aria-label="Copy number">${ic.copy}</button>
     <button class="x-btn l-ghost foot-icon" data-act="qr" aria-label="Show QR code">${ic.qr}</button>`;
@@ -227,11 +238,14 @@ function homeScreen() {
       <button class="x-btn g-blue btn-primary" disabled style="opacity:.9;gap:10px">${ic.spinner}<span role="status">Adding…</span></button>
     </div></div>`;
   } else if (isConnected(s.domain)) {
-    card = `<div class="card swap"><div class="center-col swap">
+    // Right after adding, the card stays put and only the badge and text animate in.
+    const swap = state.justAdded ? "" : " swap";
+    const anim = (cls) => (state.justAdded ? ` ${cls}` : "");
+    card = `<div class="card${swap}"><div class="center-col${swap}">
       <div class="spacer"></div>
-      <span class="tile-wrap">${tileHtml(s)}<span class="tile-badge">${ic.check}</span></span>
-      <span class="title md" style="margin-top:10px">${s.name} is on iMessage</span>
-      <span class="sub">Text the number below anytime.</span>
+      <span class="tile-wrap">${tileHtml(s)}<span class="tile-badge${anim("pop")}">${ic.check}</span></span>
+      <span class="title md${anim("rise")}" style="margin-top:10px">${s.name} is on Landline</span>
+      <span class="sub${anim("rise rise-2")}">Call the number below anytime.</span>
       <div class="spacer"></div>
     </div></div>`;
   } else {
@@ -262,12 +276,12 @@ function manageLink() {
 }
 
 function scanScreen() {
-  const { d, n } = qrSvg(state.config ? state.config.smsLink : "sms:");
+  const { d, n } = qrSvg(contactCard(state.config ? state.config.phone : ""));
   return `<div class="card flush swap" style="align-items:center;text-align:center;gap:12px">
     <div class="scan-top"><button class="x-btn icon-btn left" data-act="back" aria-label="Back">${ic.back}</button></div>
     <span class="title sm" style="text-wrap:balance">Scan with your iPhone camera</span>
-    <div class="qr-frame"><svg viewBox="0 0 ${n} ${n}" width="168" height="168" shape-rendering="crispEdges" role="img" aria-label="Code that opens a text to your Landline agent"><path d="${d}" fill="#0d0f14"/></svg></div>
-    <span class="sub" style="max-width:290px">It opens a text to your Landline agent. Send a message to get started.</span>
+    <div class="qr-frame"><svg viewBox="0 0 ${n} ${n}" width="168" height="168" shape-rendering="crispEdges" role="img" aria-label="Code that adds Landline Assistant to your contacts"><path d="${d}" fill="#0d0f14"/></svg></div>
+    <span class="sub" style="max-width:290px">It adds Landline Assistant to your contacts, so you can call anytime.</span>
     <button class="x-btn link-btn" data-act="done">Done</button>
   </div>`;
 }
@@ -324,13 +338,36 @@ async function startAdd() {
       await new Promise((r) => setTimeout(r, 1400)); // mock capture delay
       state.accounts = [siteAsAccount(state.site), ...state.accounts.filter((a) => a.domain !== state.site.domain)];
     }
-    state.adding = false;
-    state.screen = "scan";
   } catch {
     state.adding = false;
     state.screen = "error";
+    render();
+    return;
   }
+
+  // The QR only matters the first time, to get the number onto the phone.
+  // Every later connection goes straight to the connected card.
+  if (state.accounts.length === 1) {
+    state.adding = false;
+    state.screen = "scan";
+    render();
+    return;
+  }
+  showAddedButton();
+  await new Promise((r) => setTimeout(r, ADDED_HOLD_MS));
+  state.adding = false;
+  state.justAdded = true;
   render();
+}
+
+// Turns the "Adding…" button green with a check, in place, before the card changes.
+function showAddedButton() {
+  const btn = bodyEl.querySelector(".btn-primary");
+  if (!btn) return;
+  btn.classList.replace("g-blue", "g-green");
+  btn.classList.add("added");
+  btn.style.opacity = "";
+  btn.innerHTML = `${ic.checkDraw}<span role="status">Connected</span>`;
 }
 
 async function removeAccount(domain) {
@@ -416,7 +453,7 @@ async function init() {
   } else {
     // Design preview: a connectable site that isn't yet connected, with config
     // already loaded. A URL hash forces a screen for design review.
-    state.config = { phone: "+16175550142", smsLink: "sms:+16175550142" };
+    state.config = { phone: "+16175550142" };
     state.site = { domain: "verizon.com", name: "Verizon", letter: "V", color: "#c62a1f", favIconUrl: "", url: "https://verizon.com", title: "Verizon" };
     state.accounts = mockAccounts();
     const h = location.hash.slice(1);
