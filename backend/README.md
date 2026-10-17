@@ -73,6 +73,27 @@ Cost: a sandbox is billed while it exists, also when idle. `DELETE /connections/
 
 The dashboard socket also carries live screencast frames `{type:"frame",connectionId,jpeg}` (base64 JPEG, at most 5 per second). They are not stored in `/events`.
 
+## Voice agent (MCP)
+
+The backend is an MCP server for voice agent platforms such as ElevenLabs Agents.
+
+- Streamable HTTP: `POST {PUBLIC_URL}/mcp` (stateless; `GET`/`DELETE` return 405)
+- Legacy SSE: `GET {PUBLIC_URL}/mcp/sse`, with messages posted to `/mcp/messages`
+- Auth: every request needs `Authorization: Bearer <MCP_TOKEN>`. Set `MCP_TOKEN` in `.env`. Without the header, or with an empty `MCP_TOKEN`, the answer is 401.
+
+Tools:
+
+| Tool | Meaning |
+| --- | --- |
+| `list_connections()` | Connected sites: `id`, `domain`, `title`, `state`, `loggedIn`, `createdAt` |
+| `send_action({ connectionId, query })` | `{ accepted: true }`, or an error `busy` if a turn is running. Returns at once |
+| `wait_result({ connectionId, timeoutSeconds? })` | Waits up to 25 s (default and maximum). Returns `{kind:"result"\|"error"\|"question",text}`, `{kind:"approval",summary,url}`, `{kind:"progress",text}` or `{kind:"pending"}` |
+| `stop_action({ connectionId })` | `{ stopped: true }` |
+
+Tool loop: `list_connections` -> `send_action` -> repeat `wait_result` until `result` or `error`. On `question`, ask the caller and answer with `send_action`. On `approval`, tell the caller to approve on their phone and keep waiting. On `progress` or `pending`, call `wait_result` again. A late `wait_result` still gets the finished result (the backend keeps the last result until the next `send_action`).
+
+The same wait exists over HTTP: `GET /actions/wait?connectionId=&timeout=25000` -> `{ event: TurnEvent | null }`.
+
 ## Environment variables
 
 | Variable | Meaning |
@@ -82,6 +103,7 @@ The dashboard socket also carries live screencast frames `{type:"frame",connecti
 | `LANDLINE_PHONE` | Number shown by `GET /config` |
 | `BROWSER_PROVIDER` | `local` or `chalk` |
 | `DATA_FILE` | Where state is saved. Default `backend/data.json`. Set it to run a second backend in the same checkout |
+| `MCP_TOKEN` | Bearer token required by `/mcp` (see "Voice agent (MCP)") |
 | `CALLBACK_URL` | Where the backend POSTs callbacks (below). Optional |
 | `FACTORY_API_KEY` | Factory key. The Droid SDK reads it from the environment |
 | `DROID_EXEC_PATH` | Overrides the `droid` binary. Default: `backend/bin/droid`, then `droid` on PATH |

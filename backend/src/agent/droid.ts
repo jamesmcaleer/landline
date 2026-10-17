@@ -127,6 +127,7 @@ export async function createConnectionAgent(opts: { connectionId: string; cdpUrl
         async ({ question }: { question: string }) => {
           askedThisTurn = true;
           state = "waiting_user";
+          emit({ type: "task.question", connectionId, text: question });
           void sendCallback({ connectionId, type: "question", text: question });
           return "The question was sent. End your turn now; the answer arrives as the next message.";
         },

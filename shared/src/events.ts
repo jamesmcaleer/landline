@@ -6,6 +6,7 @@ export type Event =
   | { type: "task.step"; connectionId: string; text: string }
   | { type: "task.done"; connectionId: string; text: string }
   | { type: "task.error"; connectionId: string; text: string }
+  | { type: "task.question"; connectionId: string; text: string }
   | { type: "approval.requested"; connectionId: string; approvalId: string; summary: string; kind: ApprovalKind; url: string }
   | { type: "approval.resolved";  connectionId: string; approvalId: string; status: ApprovalStatus; message: string | null };
 export interface EventEnvelope { id: number; ts: string; event: Event }

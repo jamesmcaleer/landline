@@ -4,7 +4,7 @@ import { createConnectionAgent, type ConnectionAgent } from "./agent/droid.js";
 import { stopScreencast } from "./agent/screencast.js";
 import { loadSession } from "./browser/session.js";
 import { getProvider } from "./browser/provider.js";
-import { approvals, connections, emit, save, type StoredConnection } from "./store.js";
+import { approvals, connections, emit, onEvent, save, type StoredConnection } from "./store.js";
 
 const waiters = new Map<string, Array<() => void>>();
 
@@ -118,4 +118,66 @@ export async function removeConnection(connectionId: string): Promise<void> {
   connections.delete(connectionId);
   save();
   emit({ type: "connection.removed", connectionId });
+}
+
+// --- waiting for the outcome of a turn ---
+
+export type TurnEvent =
+  | { kind: "result"; text: string }
+  | { kind: "error"; text: string }
+  | { kind: "question"; text: string }
+  | { kind: "approval"; summary: string; url: string }
+  | { kind: "progress"; text: string };
+
+function toTurnEvent(event: import("@landline/shared").Event): TurnEvent | null {
+  switch (event.type) {
+    case "task.done": return { kind: "result", text: event.text };
+    case "task.error": return { kind: "error", text: event.text };
+    case "task.question": return { kind: "question", text: event.text };
+    case "approval.requested": return { kind: "approval", summary: event.summary, url: event.url };
+    case "task.step": return { kind: "progress", text: event.text };
+    default: return null;
+  }
+}
+
+/** The last result, error or question of each connection's current turn. Cleared when a new action is sent. */
+const lastResult = new Map<string, TurnEvent>();
+
+onEvent(({ event }) => {
+  if (!("connectionId" in event)) return;
+  const turn = toTurnEvent(event);
+  if (turn && (turn.kind === "result" || turn.kind === "error" || turn.kind === "question")) lastResult.set(event.connectionId, turn);
+});
+
+/** Sends a query to the connection's agent. Throws "busy" or "connection not found". Clears the cached result. */
+export async function sendAction(connectionId: string, query: string): Promise<void> {
+  const agent = await getAgent(connectionId);
+  await agent.send(query);
+  lastResult.delete(connectionId); // agent.send throws when busy, so a running turn keeps its cache
+}
+
+/**
+ * Resolves with the next result, error, question, approval request or progress step for the connection,
+ * or null after timeoutMs. If the agent is already finished (idle) or waiting for the user and the answer
+ * was produced after the last send, returns that cached answer at once.
+ */
+export function waitForTurnEvent(connectionId: string, timeoutMs: number): Promise<TurnEvent | null> {
+  const cached = lastResult.get(connectionId);
+  const state = agents.get(connectionId)?.state() ?? "idle";
+  if (cached && ((state === "idle" && (cached.kind === "result" || cached.kind === "error")) || (state === "waiting_user" && cached.kind === "question"))) {
+    return Promise.resolve(cached);
+  }
+  return new Promise((resolve) => {
+    const finish = (value: TurnEvent | null) => {
+      clearTimeout(timer);
+      off();
+      resolve(value);
+    };
+    const off = onEvent(({ event }) => {
+      if (!("connectionId" in event) || event.connectionId !== connectionId) return;
+      const turn = toTurnEvent(event);
+      if (turn) finish(turn);
+    });
+    const timer = setTimeout(() => finish(null), timeoutMs);
+  });
 }

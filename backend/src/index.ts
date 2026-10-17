@@ -9,6 +9,7 @@ import { getProvider } from "./browser/provider.js";
 import { startScreencast } from "./agent/screencast.js";
 import { handleHubUpgrade, onAnyRelayConnected, relayRouter } from "./browser/relay-hub.js";
 import { onRelayReconnected, reloadSession, resolveApproval } from "./services.js";
+import { mcpRouter } from "./mcp.js";
 import { approvals, connections, load, save } from "./store.js";
 
 load();
@@ -45,7 +46,8 @@ async function rehydrateConnections(): Promise<void> {
 }
 
 const app = express();
-app.use(express.json({ limit: "5mb" }));
+app.use(express.json({ limit: "5mb" })); // the MCP transports accept the parsed body, so they are mounted after it
+app.use(mcpRouter);
 app.use(connectionsRouter);
 app.use(approvalsRouter);
 app.use(actionsRouter);
