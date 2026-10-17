@@ -67,7 +67,10 @@ export async function loadSession(cdpUrl: string, session: SessionExport): Promi
     await page("Network.setCookies", { cookies: session.cookies.map(toCdpCookie) });
 
     const b = session.browser;
-    await tryCommand("setUserAgentOverride", page("Emulation.setUserAgentOverride", { userAgent: b.userAgent, platform: b.platform }));
+    // Do NOT override the user agent. When the driving browser is the same build the session
+    // was captured in, its native UA and Client Hints already match; overriding the UA string
+    // without also rewriting userAgentMetadata leaves the two disagreeing, which is a stronger
+    // bot signal than doing nothing. (Capture and drive with the same real Chrome to stay consistent.)
     await tryCommand("setTimezoneOverride", page("Emulation.setTimezoneOverride", { timezoneId: b.timezone }));
     await tryCommand("setLocaleOverride", page("Emulation.setLocaleOverride", { locale: b.language }));
 
