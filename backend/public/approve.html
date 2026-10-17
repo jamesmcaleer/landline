@@ -1,118 +1,465 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Landline approval</title>
-  <script src="https://unpkg.com/@simplewebauthn/browser@13.1.0/dist/bundle/index.umd.min.js"></script>
-  <style>
-    :root { color-scheme: light dark; font-family: -apple-system, system-ui, sans-serif; }
-    body { margin: 0; padding: 24px 16px; max-width: 420px; margin-inline: auto; }
-    h1 { font-size: 1.1rem; margin: 0 0 16px; }
-    .summary { font-size: 1.3rem; font-weight: 600; margin: 8px 0; }
-    .meta { color: gray; margin: 4px 0; }
-    button { display: block; width: 100%; padding: 14px; margin-top: 12px; font-size: 1rem; border-radius: 10px; border: 1px solid gray; background: transparent; color: inherit; }
-    button.primary { background: #0a7cff; border-color: #0a7cff; color: white; }
-    button.small { font-size: 0.85rem; padding: 8px; margin-top: 40px; border: none; color: #d33; }
-    textarea { width: 100%; box-sizing: border-box; margin-top: 12px; padding: 10px; font: inherit; border-radius: 10px; }
-    #error { color: #d33; margin-top: 12px; }
-    [hidden] { display: none; }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#f2f3f6">
+<meta name="color-scheme" content="light">
+<title>Landline approval</title>
+<script src="https://unpkg.com/@simplewebauthn/browser@13.1.0/dist/bundle/index.umd.min.js"></script>
+<style>
+  :root {
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --bg: #f2f3f6;
+    --ink: #111318;
+    --ink-2: #3c3f47;
+    --ink-3: #5b5f6a;
+    --line: #ebecef;
+    --blue: #1560cc;
+    --red: #c4291f;
+    --amber: #8a4b00;
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  html {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    overscroll-behavior: none;
+    background: var(--bg);
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  [hidden] { display: none !important; }
+
+  /* Page frame: one header, one card. */
+  .page {
+    min-height: 100vh;
+    min-height: 100dvh;
+    max-width: 480px;
+    margin: 0 auto;
+    padding: calc(20px + env(safe-area-inset-top, 0px)) 16px calc(20px + env(safe-area-inset-bottom, 0px));
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .header {
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--ink-2);
+  }
+  .card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 24px;
+    border-radius: 28px;
+    background: #fff;
+    box-shadow: 0 0 0 1px rgba(17, 19, 24, .06), 0 12px 30px -18px rgba(17, 19, 24, .25);
+  }
+  .view { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+
+  /* Request summary */
+  .row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 15px; }
+  .kind { font-weight: 600; color: var(--ink-2); }
+  .timer { color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .timer.urgent { color: var(--amber); }
+  h1 {
+    margin: 14px 0 0;
+    font-size: 28px;
+    line-height: 1.2;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    text-wrap: pretty;
+    overflow-wrap: anywhere;
+  }
+  .site {
+    margin-top: 22px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+  .badge {
+    width: 36px; height: 36px; flex: none;
+    border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 16px; color: #fff;
+    background: #c62a1f;
+    overflow: hidden;
+  }
+  .badge img { width: 100%; height: 100%; object-fit: cover; display: block; background: #fff; }
+  .site-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .site-name { font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .site-sub { font-size: 14px; color: var(--ink-3); }
+  .spacer { flex: 1; min-height: 24px; }
+
+  /* Actions: one stack, one set of buttons. */
+  .actions { display: flex; flex-direction: column; gap: 10px; }
+  .note-text { margin: 0 0 4px; font-size: 15px; line-height: 1.4; text-align: center; color: var(--ink-3); text-wrap: balance; }
+  .note-text.alert { color: var(--amber); }
+  .note-text.strong { color: var(--ink-2); }
+
+  .btn {
+    appearance: none; -webkit-appearance: none;
+    height: 56px; width: 100%;
+    border: 0; border-radius: 28px;
+    padding: 0 20px;
+    font: inherit; font-size: 18px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    touch-action: manipulation;
+    user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+    cursor: pointer;
+    transition: transform 140ms var(--ease-out), background-color 200ms ease, opacity 200ms ease;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { cursor: default; }
+  .btn:disabled:active { transform: none; }
+  .btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+  .btn.small { height: 44px; border-radius: 22px; font-size: 15px; font-weight: 500; }
+  .btn-primary {
+    background: linear-gradient(180deg, #3d8ff2 0%, #1560cc 100%);
+    color: #fff;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.5), inset 0 -1px 0 rgba(0,0,0,.18), 0 0 0 1px rgba(21,96,204,.5), 0 8px 20px -10px rgba(21,96,204,.7);
+  }
+  .btn-gray { background: #eff0f3; color: var(--ink); }
+  .btn-red { background: var(--red); color: #fff; }
+  .btn-text { background: transparent; color: var(--ink-2); }
+  .btn-quiet { background: transparent; color: #b3261e; }
+  .btn:disabled:not(.is-busy) { opacity: .55; }
+  .btn svg { flex: none; }
+  .spin { animation: spin 700ms linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes pulse { 50% { opacity: .4; } }
+  @media (hover: hover) and (pointer: fine) {
+    .btn-gray:hover:not(:disabled) { background: #e6e7eb; }
+    .btn-quiet:hover:not(:disabled), .btn-text:hover:not(:disabled) { text-decoration: underline; }
+  }
+
+  label { font-size: 15px; color: var(--ink-2); }
+  textarea {
+    display: block; width: 100%;
+    font: inherit; font-size: 17px; line-height: 1.35;
+    min-height: 76px;
+    border: 0; border-radius: 16px;
+    padding: 12px 14px;
+    background: var(--bg); color: var(--ink);
+    resize: none;
+    -webkit-appearance: none; appearance: none;
+  }
+  textarea::placeholder { color: #767a85; }
+  textarea:focus { outline: none; box-shadow: inset 0 0 0 1.5px var(--blue); }
+
+  /* Code fallback */
+  .code-block { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 20px 0 22px; text-align: center; }
+  .code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 40px; font-weight: 600; letter-spacing: .12em;
+    font-variant-numeric: tabular-nums;
+    user-select: all; -webkit-user-select: all;
+  }
+  .code-hint { font-size: 15px; color: var(--ink-2); }
+
+  /* End states */
+  .end { align-items: center; justify-content: center; gap: 16px; text-align: center; padding: 0 8px 40px; }
+  .end-icon { width: 64px; height: 64px; border-radius: 32px; display: flex; align-items: center; justify-content: center; }
+  .end-text { display: flex; flex-direction: column; gap: 6px; }
+  .end-title { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; text-wrap: balance; }
+  .end-sub { font-size: 17px; line-height: 1.4; color: var(--ink-3); text-wrap: balance; }
+
+  /* Panel swap: opacity + scale + blur, plays whenever a hidden panel is shown.
+     A keyframe animation is used (rather than @starting-style) so it also runs on older iOS Safari. */
+  .swap { animation: swap-in 220ms var(--ease-out) both; }
+  @keyframes swap-in {
+    from { opacity: 0; transform: scale(.98); filter: blur(2px); }
+    to   { opacity: 1; transform: none; filter: blur(0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .swap { animation: fade-in 200ms ease both; }
+    @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+    .btn:active { transform: none; }
+    .spin { animation: pulse 1.2s ease-in-out infinite; }
+  }
+</style>
 </head>
 <body>
-  <h1>Landline</h1>
-  <p id="message" hidden></p>
+<div class="page">
+  <div class="header">Landline</div>
+  <section class="card">
 
-  <main id="request" hidden>
-    <div class="meta" id="site"></div>
-    <div class="summary" id="summary"></div>
-    <div class="meta" id="kind"></div>
-    <div class="meta" id="countdown"></div>
+    <!-- Loading placeholder keeps the card from flashing empty -->
+    <div class="view" id="v-loading" aria-busy="true"></div>
 
-    <button class="primary" id="approve">Approve</button>
-    <textarea id="declineMessage" rows="2" placeholder="Reason for declining (optional)"></textarea>
-    <button id="decline">Decline</button>
-    <button class="small" id="revoke">Revoke this connection</button>
-    <div id="error"></div>
-  </main>
+    <!-- Request (also hosts the decline / revoke / code panels) -->
+    <div class="view" id="v-request" hidden>
+      <div class="row">
+        <span class="kind" id="kind"></span>
+        <span class="timer" id="timer" role="timer"></span>
+      </div>
+      <h1 id="summary"></h1>
+      <div class="site">
+        <span class="badge" id="badge" aria-hidden="true"></span>
+        <div class="site-text">
+          <span class="site-name" id="siteName"></span>
+          <span class="site-sub" id="siteSub"></span>
+        </div>
+      </div>
+      <div class="spacer"></div>
 
-  <script>
-    const token = location.pathname.split("/")[2];
-    const base = "/a/" + token;
-    const $ = (id) => document.getElementById(id);
-    let expiresAt = 0;
-    let countdownTimer;
+      <div class="actions swap" id="p-main" hidden>
+        <p class="note-text alert" id="failMsg" role="alert" hidden>Face ID didn’t go through. Nothing happened.</p>
+        <p class="note-text" id="firstMsg" hidden>First time? Your phone will save a passkey, then ask for Face ID.</p>
+        <button class="btn btn-primary" id="approve" type="button">
+          <svg id="approveIcon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2"/><path d="M16 4h2a2 2 0 0 1 2 2v2"/><path d="M20 16v2a2 2 0 0 1-2 2h-2"/><path d="M8 20H6a2 2 0 0 1-2-2v-2"/><path d="M9 9.5v1.5"/><path d="M15 9.5v1.5"/><path d="M12 9.5v3.5h-1"/><path d="M9 15.5c1.6 1.3 4.4 1.3 6 0"/></svg>
+          <svg class="spin" id="approveSpin" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true" hidden><path d="M12 3a9 9 0 1 0 9 9"/></svg>
+          <span id="approveLabel">Approve</span>
+        </button>
+        <button class="btn btn-gray" id="decline" type="button">Decline</button>
+        <button class="btn btn-quiet small" id="revoke" type="button">Revoke this connection</button>
+      </div>
 
-    function showMessage(text) {
-      clearInterval(countdownTimer);
-      $("request").hidden = true;
-      $("message").hidden = false;
-      $("message").textContent = text;
+      <div class="actions swap" id="p-decline" hidden>
+        <label for="note">Add a note (optional)</label>
+        <textarea id="note" rows="2" placeholder="Like “use my other card”" enterkeyhint="send" autocapitalize="sentences"></textarea>
+        <button class="btn btn-gray" id="sendDecline" type="button">Decline</button>
+        <button class="btn btn-text small" id="declineBack" type="button">Cancel</button>
+      </div>
+
+      <div class="actions swap" id="p-revoke" hidden>
+        <p class="note-text strong" id="revokeMsg"></p>
+        <button class="btn btn-red" id="confirmRevoke" type="button">
+          <svg class="spin" id="revokeSpin" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true" hidden><path d="M12 3a9 9 0 1 0 9 9"/></svg>
+          <span id="revokeLabel">Revoke</span>
+        </button>
+        <button class="btn btn-text small" id="revokeBack" type="button">Cancel</button>
+      </div>
+
+      <!-- Shown only when WebAuthn is unavailable. -->
+      <div class="swap" id="p-code" hidden>
+        <div class="code-block">
+          <span class="code" id="code">482 913</span>
+          <span class="code-hint">Text this code back to approve.</span>
+        </div>
+        <div class="actions">
+          <button class="btn btn-gray" id="codeDecline" type="button">Decline</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- End states -->
+    <div class="view end swap" id="v-end" role="status" hidden>
+      <span class="end-icon" id="endIcon"></span>
+      <div class="end-text">
+        <span class="end-title" id="endTitle"></span>
+        <span class="end-sub" id="endSub"></span>
+      </div>
+    </div>
+
+  </section>
+</div>
+
+<script>
+  const token = location.pathname.split("/")[2];
+  const base = "/a/" + token;
+  const $ = (id) => document.getElementById(id);
+
+  const KIND_LABELS = { payment: "Payment", plan_change: "Plan change", order: "Order", settings: "Settings", other: "Request" };
+  const BADGE_COLORS = ["#c62a1f", "#1560cc", "#1a7a3a", "#7a3fc4", "#b35a00", "#0a7c86", "#c2185b", "#3c3f47"];
+  const ICONS = {
+    check: '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+    cross: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11"/><path d="M17.5 6.5l-11 11"/></svg>',
+    clock: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
+  };
+  const ENDS = {
+    approved: { title: "Approved.", sub: "You can close this tab.", icon: "check", color: "#1a7a3a", bg: "#e3f4e8" },
+    declined: { title: "Declined.", sub: "The agent will stop.", icon: "cross", color: "#3c3f47", bg: "#eff0f3" },
+    revoked: { title: "Connection revoked.", sub: () => "Nothing more will run on " + siteName() + ".", icon: "cross", color: "#b3261e", bg: "#fbe9e7" },
+    expired: { title: "This request expired.", sub: "Text the assistant again.", icon: "clock", color: "#8a4b00", bg: "#fbf0dc" },
+    answered: { title: "This request was already answered.", sub: "There’s nothing left to do here.", icon: "check", color: "#3c3f47", bg: "#eff0f3" },
+  };
+
+  let state = null;
+  let expiresAt = 0;
+  let countdownTimer;
+  let busy = false;
+  let failed = false;
+  let finished = false;
+  // Without WebAuthn the page can only show a code (and decline).
+  const codeMode = !window.PublicKeyCredential;
+
+  function siteName() {
+    return (state && (state.site.title || state.site.domain)) || "this site";
+  }
+
+  function relativeTime(iso) {
+    const ms = Date.now() - Date.parse(iso);
+    if (!Number.isFinite(ms) || ms < 60_000) return "just now";
+    const min = Math.floor(ms / 60_000);
+    if (min < 60) return min + (min === 1 ? " minute ago" : " minutes ago");
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return hr + (hr === 1 ? " hour ago" : " hours ago");
+    const day = Math.floor(hr / 24);
+    if (day < 30) return day + (day === 1 ? " day ago" : " days ago");
+    const mo = Math.floor(day / 30);
+    if (mo < 12) return mo + (mo === 1 ? " month ago" : " months ago");
+    const yr = Math.floor(day / 365) || 1;
+    return yr + (yr === 1 ? " year ago" : " years ago");
+  }
+
+  // Shows one top-level view; replays the swap animation by toggling hidden.
+  function showView(id) {
+    for (const v of ["v-loading", "v-request", "v-end"]) $(v).hidden = v !== id;
+  }
+  function showPanel(id) {
+    for (const p of ["p-main", "p-decline", "p-revoke", "p-code"]) $(p).hidden = p !== id;
+  }
+  const homePanel = () => (codeMode ? "p-code" : "p-main");
+
+  function showEnd(key) {
+    finished = true;
+    clearInterval(countdownTimer);
+    const e = ENDS[key];
+    $("endIcon").style.background = e.bg;
+    $("endIcon").style.color = e.color;
+    $("endIcon").innerHTML = ICONS[e.icon];
+    $("endTitle").textContent = e.title;
+    $("endSub").textContent = typeof e.sub === "function" ? e.sub() : e.sub;
+    showView("v-end");
+  }
+
+  function tickCountdown() {
+    const seconds = Math.max(0, Math.round((expiresAt - Date.now()) / 1000));
+    $("timer").textContent = "Expires in " + Math.floor(seconds / 60) + ":" + String(seconds % 60).padStart(2, "0");
+    $("timer").classList.toggle("urgent", seconds < 120);
+    if (seconds === 0 && !busy) showEnd("expired");
+  }
+
+  function setBusy(on, which) {
+    busy = on;
+    document.querySelectorAll("#v-request .btn").forEach((b) => { b.disabled = on; });
+    const isApprove = which === "approve";
+    $("approve").classList.toggle("is-busy", on && isApprove);
+    $("confirmRevoke").classList.toggle("is-busy", on && !isApprove);
+    $("approveIcon").hidden = on && isApprove;
+    $("approveSpin").hidden = !(on && isApprove);
+    $("revokeSpin").hidden = !(on && !isApprove);
+    $("approveLabel").textContent = on && isApprove ? "Waiting for Face ID…" : failed ? "Try again" : "Approve";
+    $("revokeLabel").textContent = on && !isApprove ? "Waiting for Face ID…" : "Revoke";
+    renderHints();
+  }
+
+  function renderHints() {
+    $("failMsg").hidden = !(failed && !busy);
+    $("firstMsg").hidden = !(state && !state.hasPasskey && !failed && !busy);
+  }
+
+  async function post(path, body) {
+    const res = await fetch(base + path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body ?? {}),
+    });
+    if (res.status === 410) {
+      showEnd("answered");
+      throw new Error("gone");
     }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Request failed");
+    return data;
+  }
 
-    function tickCountdown() {
-      const seconds = Math.max(0, Math.round((expiresAt - Date.now()) / 1000));
-      $("countdown").textContent = "Expires in " + Math.floor(seconds / 60) + ":" + String(seconds % 60).padStart(2, "0");
-      if (seconds === 0) showMessage("This request expired or was already answered.");
+  // Runs Face ID. Registers a passkey the first time, then authenticates.
+  async function runWebAuthn(hasPasskey) {
+    const options = await post("/options");
+    return hasPasskey
+      ? SimpleWebAuthnBrowser.startAuthentication({ optionsJSON: options })
+      : SimpleWebAuthnBrowser.startRegistration({ optionsJSON: options });
+  }
+
+  async function decide(decision, needsWebAuthn) {
+    const which = decision === "revoked" ? "revoke" : "approve";
+    failed = false;
+    if (needsWebAuthn) setBusy(true, which);
+    try {
+      const body = { decision };
+      if (needsWebAuthn) body.webauthn = await runWebAuthn(state.hasPasskey);
+      if (decision === "declined") body.message = $("note").value;
+      await post("/decision", body);
+      busy = false;
+      showEnd(decision);
+    } catch (err) {
+      if (finished) return;
+      failed = true; // Face ID cancelled, 403 "Face ID check failed", or a network error
+      setBusy(false, which);
+      showPanel(homePanel());
     }
+  }
 
-    async function post(path, body) {
-      const res = await fetch(base + path, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body ?? {}),
-      });
-      if (res.status === 410) {
-        showMessage("This request expired or was already answered.");
-        throw new Error("gone");
-      }
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Request failed");
-      return data;
+  function badge() {
+    const el = $("badge");
+    const { favIconUrl, domain } = state.site;
+    const name = siteName();
+    let h = 0;
+    for (const c of domain || name) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+    const initial = () => {
+      el.textContent = (name.trim()[0] || "?").toUpperCase();
+      el.style.background = BADGE_COLORS[h % BADGE_COLORS.length];
+    };
+    if (favIconUrl) {
+      const img = new Image();
+      img.alt = "";
+      img.onerror = initial;
+      img.src = favIconUrl;
+      el.style.background = "#fff";
+      el.appendChild(img);
+    } else {
+      initial();
     }
+  }
 
-    // Runs Face ID. Registers a passkey the first time, then authenticates.
-    async function runWebAuthn(hasPasskey) {
-      const options = await post("/options");
-      return hasPasskey
-        ? SimpleWebAuthnBrowser.startAuthentication({ optionsJSON: options })
-        : SimpleWebAuthnBrowser.startRegistration({ optionsJSON: options });
-    }
+  async function init() {
+    let res;
+    try { res = await fetch(base + "/state"); } catch { res = null; }
+    if (!res || !res.ok) { showEnd("expired"); return; }
+    state = await res.json();
 
-    async function decide(decision, needsWebAuthn) {
-      $("error").textContent = "";
-      try {
-        const body = { decision };
-        if (needsWebAuthn) body.webauthn = await runWebAuthn(state.hasPasskey);
-        if (decision === "declined") body.message = $("declineMessage").value;
-        await post("/decision", body);
-        showMessage("Done. You can close this tab.");
-      } catch (err) {
-        if (err.message !== "gone") $("error").textContent = err.message;
-      }
-    }
+    $("kind").textContent = KIND_LABELS[state.approval.kind] || "Request";
+    $("summary").textContent = state.approval.summary;
+    $("siteName").textContent = siteName();
+    $("siteSub").textContent = "Connected " + relativeTime(state.connection && state.connection.createdAt);
+    $("revokeMsg").textContent = "Stop all requests on " + siteName() + "? You can add it again from your computer.";
+    badge();
+    renderHints();
 
-    let state;
-    async function init() {
-      const res = await fetch(base + "/state");
-      if (!res.ok) {
-        showMessage("This request expired or was already answered.");
-        return;
-      }
-      state = await res.json();
-      $("site").textContent = state.site.domain;
-      $("summary").textContent = state.approval.summary;
-      $("kind").textContent = "Type: " + state.approval.kind.replace("_", " ");
-      expiresAt = Date.parse(state.approval.expiresAt);
-      $("request").hidden = false;
-      tickCountdown();
-      countdownTimer = setInterval(tickCountdown, 1000);
+    // TODO: the backend has no code endpoint yet. Fetch a real one-time code here when it exists.
+    $("code").textContent = "482 913";
 
-      $("approve").onclick = () => decide("approved", true);
-      $("decline").onclick = () => decide("declined", false);
-      $("revoke").onclick = () => decide("revoked", true);
-    }
-    init();
-  </script>
+    expiresAt = Date.parse(state.approval.expiresAt);
+    showView("v-request");
+    showPanel(homePanel());
+    tickCountdown();
+    countdownTimer = setInterval(tickCountdown, 1000);
+
+    $("approve").onclick = () => decide("approved", true);
+    $("decline").onclick = $("codeDecline").onclick = () => { showPanel("p-decline"); };
+    $("sendDecline").onclick = () => decide("declined", false);
+    $("declineBack").onclick = () => showPanel(homePanel());
+    $("revoke").onclick = () => showPanel("p-revoke");
+    $("confirmRevoke").onclick = () => decide("revoked", true);
+    $("revokeBack").onclick = () => showPanel(homePanel());
+  }
+  init();
+</script>
 </body>
 </html>
