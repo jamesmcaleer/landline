@@ -20,6 +20,8 @@
 /* Beat class-level `display` so the `hidden` attribute still hides. */
 [hidden] { display: none !important; }
 
+html, body { height: 600px; }
+
 body {
   width: 360px;
   margin: 0;
@@ -38,16 +40,12 @@ body {
 .b2 { left: 96px; top: 150px; background: #cfeec0; opacity: 0.8; }
 .b3 { left: 236px; top: 80px; background: #f4b48f; opacity: 0.7; }
 
-.shell { position: relative; display: flex; flex-direction: column; min-height: 560px; }
+.shell { position: relative; display: flex; flex-direction: column; height: 600px; }
 
 /* Top bar */
 .bar { display: flex; align-items: center; gap: 10px; padding: 16px 16px 8px 18px; }
 .brand { display: flex; align-items: center; gap: 10px; flex: 1; }
-.brand-mark {
-  width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(180deg, #3d8ff2, #1560cc);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
-}
+.brand-mark { width: 28px; height: 28px; border-radius: 8px; display: block; }
 .brand-name { font-size: 17px; font-weight: 600; }
 .accounts-btn { height: 36px; padding: 0 14px; border-radius: 18px; font-size: 14px; font-weight: 600; gap: 8px; }
 .count-pill {
@@ -57,7 +55,7 @@ body {
 }
 
 /* Body / screens */
-.body { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; padding: 8px 16px 16px; }
+.body { position: relative; flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 12px; padding: 8px 16px 16px; }
 
 .card {
   flex: 1; border-radius: 22px; padding: 24px 22px 22px;
@@ -117,7 +115,7 @@ body {
 .btn-pair { flex: 1; height: 42px; border-radius: 21px; font-size: 15px; font-weight: 600; }
 
 /* Home footer button (jump to accounts) */
-.manage-link { height: 56px; padding: 0 14px 0 16px; border-radius: 16px; gap: 12px; justify-content: flex-start; text-align: left; }
+.manage-link { flex: none; height: 56px; padding: 0 14px 0 16px; border-radius: 16px; gap: 12px; justify-content: flex-start; text-align: left; }
 .manage-link .count-text { flex: 1; font-size: 15px; font-weight: 600; }
 .manage-link .count-text.mute { color: var(--ink-soft); }
 .avatar-stack { display: flex; padding-left: 8px; }

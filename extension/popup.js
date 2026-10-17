@@ -208,7 +208,7 @@ function homeScreen() {
       <span class="sub">Check your internet, then try again.</span>
       <div class="spacer"></div>
       <button class="x-btn g-blue btn-primary" data-act="add">Try again</button>
-    </div>${manageLink()}</div>`;
+    </div></div>`;
   } else if (!s) {
     card = `<div class="card swap"><div class="center-col swap">
       <div class="spacer"></div>
@@ -216,7 +216,7 @@ function homeScreen() {
       <span class="title sm">Open a site you use</span>
       <span class="sub">Go to a website you’re signed in to, like your phone, power, or pharmacy account. Then open Landline again.</span>
       <div class="spacer"></div>
-    </div>${manageLink()}</div>`;
+    </div></div>`;
   } else if (state.adding) {
     card = `<div class="card swap"><div class="center-col swap">
       <div class="spacer"></div>
@@ -233,7 +233,7 @@ function homeScreen() {
       <span class="title md" style="margin-top:10px">${s.name} is on iMessage</span>
       <span class="sub">Text the number below anytime.</span>
       <div class="spacer"></div>
-    </div>${manageLink()}</div>`;
+    </div></div>`;
   } else {
     card = `<div class="card swap"><div class="center-col swap">
       <div class="spacer"></div>
@@ -243,9 +243,10 @@ function homeScreen() {
       <span class="sub">Connect this browser session to iMessage.</span>
       <div class="spacer"></div>
       <button class="x-btn g-blue btn-primary" data-act="add">${ic.message} Add to iMessage</button>
-    </div>${manageLink()}</div>`;
+    </div></div>`;
   }
-  return card;
+  // The accounts count is its own widget below the main card, not part of it.
+  return card + manageLink();
 }
 
 function manageLink() {
