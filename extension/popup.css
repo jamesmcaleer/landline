@@ -51,6 +51,19 @@ body {
 .brand { display: flex; align-items: center; gap: 11px; flex: 1; }
 .brand-mark { width: 34px; height: 34px; border-radius: 9px; display: block; }
 .brand-name { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
+.icon-round { width: 36px; height: 36px; border-radius: 18px; flex: none; }
+
+/* Settings form */
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field-label { font-size: 13px; font-weight: 600; color: var(--ink-soft); }
+.field-input {
+  width: 100%; height: 44px; box-sizing: border-box; padding: 0 14px;
+  border: 0; border-radius: 12px; font: inherit; font-size: 15px; color: var(--ink);
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: inset 0 1px 0 #fff, 0 0 0 1px rgba(13, 15, 20, 0.14);
+}
+.field-input:focus-visible { outline: 2px solid #1560cc; outline-offset: 1px; }
+.field-hint { font-size: 13px; line-height: 1.4; color: var(--ink-mute); }
 
 /* Body / screens */
 .body { position: relative; flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 12px; padding: 8px 16px 16px; }

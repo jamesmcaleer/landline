@@ -1,22 +1,35 @@
 import { captureSession } from "./capture.js";
 
-const ACCOUNTS_KEY = "landline.accounts";
-const NUMBER_KEY = "landline.number";
+// The backend base URL defaults to localhost but can be changed in Settings.
+const DEFAULT_API_BASE = "http://localhost:3000";
+const API_BASE_KEY = "landline.apiBase";
+const CONFIG_KEY = "landline.config"; // cached { phone, smsLink } for instant display
+let apiBase = DEFAULT_API_BASE;
 
-// Stub for pairing/backend: a Landline number is assigned on the first
-// connection and kept from then on. Real version comes from the server.
-function generateNumber() {
-  const area = ["617", "857", "781", "339"][Math.floor(Math.random() * 4)];
-  const mid = String(Math.floor(200 + Math.random() * 800));
-  const last = String(Math.floor(1000 + Math.random() * 9000));
-  return { display: `(${area}) ${mid}-${last}`, digits: `+1${area}${mid}${last}` };
+// Real extension when the chrome APIs exist; otherwise a plain web page for
+// design preview, which uses mock data and never calls the server.
+const isExtension = typeof chrome !== "undefined" && !!chrome.tabs;
+
+// --- backend ---------------------------------------------------------------
+
+async function api(method, path, body) {
+  const res = await fetch(apiBase + path, {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) throw new Error(`${method} ${path} -> ${res.status}`);
+  return res.status === 204 ? null : res.json();
 }
 
-// Runs as a real extension popup when the chrome APIs exist, and as a plain
-// web page (for design preview) otherwise, using mock data.
-const isExtension = typeof chrome !== "undefined" && !!chrome.tabs && !!chrome.storage;
+const getConfig = () => api("GET", "/config");
+const listConnections = () => api("GET", "/connections").then((r) => r.connections);
+const createConnection = (site) => api("POST", "/connections", { site }).then((r) => r.connection);
+const uploadSession = (id, session) =>
+  api("PUT", `/connections/${id}/session`, { encoding: "plain", session }).then((r) => r.connection);
+const deleteConnection = (id) => api("DELETE", `/connections/${id}`);
 
-// --- site identity helpers ------------------------------------------------
+// --- site identity helpers -------------------------------------------------
 
 function prettyName(domain) {
   const labels = domain.replace(/^www\./, "").split(".");
@@ -31,6 +44,7 @@ function colorFromDomain(domain) {
   return `hsl(${h} 55% 42%)`;
 }
 
+// Display shape used by the UI, with the raw url/title kept for the connection.
 function siteFromTab(tab) {
   if (!tab || !tab.url || !/^https?:/.test(tab.url)) return null;
   const domain = new URL(tab.url).hostname;
@@ -41,85 +55,57 @@ function siteFromTab(tab) {
     letter: name.charAt(0).toUpperCase(),
     color: colorFromDomain(domain),
     favIconUrl: tab.favIconUrl || "",
+    url: tab.url,
+    title: tab.title || "",
   };
 }
 
-// --- storage --------------------------------------------------------------
-
-async function loadAccounts() {
-  if (!isExtension) return mockAccounts();
-  const got = await chrome.storage.local.get(ACCOUNTS_KEY);
-  return got[ACCOUNTS_KEY] || [];
+// A backend Connection mapped to the display shape the UI renders.
+function toAccount(c) {
+  const name = prettyName(c.site.domain);
+  return {
+    connectionId: c.id,
+    domain: c.site.domain,
+    name,
+    letter: name.charAt(0).toUpperCase(),
+    color: colorFromDomain(c.site.domain),
+    favIconUrl: c.site.favIconUrl || "",
+  };
 }
 
-async function saveAccounts(accounts) {
-  if (!isExtension) return;
-  await chrome.storage.local.set({ [ACCOUNTS_KEY]: accounts });
+// For the current site display object (siteFromTab) to appear in the list.
+function siteAsAccount(s) {
+  return { connectionId: null, domain: s.domain, name: s.name, letter: s.letter, color: s.color, favIconUrl: s.favIconUrl };
 }
 
-async function loadNumber() {
-  if (!isExtension) return null;
-  const got = await chrome.storage.local.get(NUMBER_KEY);
-  return got[NUMBER_KEY] || null;
-}
-
-async function saveNumber(number) {
-  if (!isExtension) return;
-  await chrome.storage.local.set({ [NUMBER_KEY]: number });
+// +1XXXXXXXXXX -> (XXX) XXX-XXXX; otherwise shown as-is.
+function formatPhone(p) {
+  const m = /^\+1(\d{3})(\d{3})(\d{4})$/.exec(p || "");
+  return m ? `(${m[1]}) ${m[2]}-${m[3]}` : p || "";
 }
 
 function mockAccounts() {
   return [
-    { domain: "coned.com", name: "Con Edison", letter: "C", color: "hsl(214 55% 42%)", favIconUrl: "" },
-    { domain: "cvs.com", name: "CVS Pharmacy", letter: "C", color: "hsl(318 55% 42%)", favIconUrl: "" },
-    { domain: "spectrum.net", name: "Spectrum", letter: "S", color: "hsl(168 55% 38%)", favIconUrl: "" },
+    { connectionId: "con_mock1", domain: "coned.com", name: "Con Edison", letter: "C", color: "hsl(214 55% 42%)", favIconUrl: "" },
+    { connectionId: "con_mock2", domain: "cvs.com", name: "CVS Pharmacy", letter: "C", color: "hsl(318 55% 42%)", favIconUrl: "" },
+    { connectionId: "con_mock3", domain: "spectrum.net", name: "Spectrum", letter: "S", color: "hsl(168 55% 38%)", favIconUrl: "" },
   ];
 }
 
-// --- capture download (until upload exists) -------------------------------
+// --- QR --------------------------------------------------------------------
 
-function downloadJson(obj, domain) {
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const blob = new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `landline-session-${domain}-${stamp}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-// --- QR placeholder (decorative until pairing exists) ---------------------
-
-function qrPath() {
-  const n = 25;
+// Real QR from the backend's sms link, rendered as an SVG path on an n x n grid.
+function qrSvg(text) {
+  const qr = window.qrcode(0, "M");
+  qr.addData(text);
+  qr.make();
+  const n = qr.getModuleCount();
   let d = "";
-  let seed = 11;
-  const rnd = () => ((seed = (seed * 16807) % 2147483647), seed / 2147483647);
-  const finder = (x, y, cx, cy) => {
-    const dx = x - cx, dy = y - cy;
-    if (dx < 0 || dy < 0 || dx > 6 || dy > 6) return null;
-    const edge = dx === 0 || dy === 0 || dx === 6 || dy === 6;
-    const core = dx >= 2 && dx <= 4 && dy >= 2 && dy <= 4;
-    return edge || core;
-  };
-  for (let y = 0; y < n; y++) {
-    for (let x = 0; x < n; x++) {
-      let f = finder(x, y, 0, 0);
-      if (f === null) f = finder(x, y, 18, 0);
-      if (f === null) f = finder(x, y, 0, 18);
-      let on;
-      if (f !== null) on = f;
-      else if (y === 6) on = x % 2 === 0;
-      else if (x === 6) on = y % 2 === 0;
-      else on = rnd() < 0.5;
-      if (on) d += `M${x} ${y}h1v1h-1z`;
-    }
-  }
-  return d;
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) d += `M${c} ${r}h1v1h-1z`;
+  return { d, n };
 }
 
-// --- icons ----------------------------------------------------------------
+// --- icons -----------------------------------------------------------------
 
 const ic = {
   message: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4C7 4 3 7.1 3 11c0 2.1 1.2 4 3.1 5.3L5.5 20l3.9-2.1c.8.2 1.7.3 2.6.3 5 0 9-3.1 9-7s-4-7.2-9-7.2z"/></svg>`,
@@ -132,6 +118,7 @@ const ic = {
   copy: `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M15 9V6.5A2.5 2.5 0 0 0 12.5 4h-6A2.5 2.5 0 0 0 4 6.5v6A2.5 2.5 0 0 0 6.5 15H9"/></svg>`,
   copied: `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#1f8a42" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`,
   qr: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><path d="M14 14h2v2M20 14v.01M14 20h.01M18 18h2v2M18 20v.01"/></svg>`,
+  offline: `<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5a9 9 0 0 1 14 0"/><path d="M8.5 15.5a4.5 4.5 0 0 1 7 0"/><path d="M12 19h.01"/><path d="M4 3l16 16"/></svg>`,
 };
 
 function tileHtml(obj, cls = "tile") {
@@ -139,26 +126,33 @@ function tileHtml(obj, cls = "tile") {
   return `<span class="${cls}" style="background:${obj.color}">${obj.letter}</span>`;
 }
 
-// --- app ------------------------------------------------------------------
+// --- app -------------------------------------------------------------------
 
 const state = {
   screen: "home", // home | scan | manage | error
   adding: false,
+  offline: false, // true when the backend can't be reached
   site: null,
   accounts: [],
-  number: null, // { display, digits }, assigned on first connection
+  config: null, // { phone, smsLink } from the backend
   confirming: null, // domain being revoke-confirmed
 };
 
 const bodyEl = document.getElementById("body");
 const footEl = document.getElementById("foot");
+const settingsBtn = document.getElementById("settings-btn");
 
 function isConnected(domain) {
   return state.accounts.some((a) => a.domain === domain);
 }
 
 function render() {
-  if (state.screen === "scan") bodyEl.innerHTML = scanScreen();
+  // The gear is hidden on screens that already have their own back button.
+  settingsBtn.hidden = ["scan", "manage", "settings"].includes(state.screen);
+
+  if (state.screen === "settings") bodyEl.innerHTML = settingsScreen();
+  else if (state.offline) bodyEl.innerHTML = offlineScreen();
+  else if (state.screen === "scan") bodyEl.innerHTML = scanScreen();
   else if (state.screen === "manage") bodyEl.innerHTML = manageScreen();
   else bodyEl.innerHTML = homeScreen();
 
@@ -166,14 +160,39 @@ function render() {
   bind();
 }
 
-// The number only exists once a session has been connected, so the footer (and
-// the QR shortcut) appear only then.
+function settingsScreen() {
+  return `<div class="card flush swap" style="gap:14px">
+    <div class="manage-head"><button class="x-btn icon-btn" data-act="back" aria-label="Back">${ic.back}</button><span class="title">Settings</span></div>
+    <div class="field">
+      <label class="field-label" for="api-input">Server URL</label>
+      <input class="field-input" id="api-input" type="url" spellcheck="false" autocomplete="off" value="${apiBase}" placeholder="${DEFAULT_API_BASE}" />
+      <span class="field-hint">Where the Landline backend is running. Leave blank to reset to the default.</span>
+    </div>
+    <div class="spacer"></div>
+    <button class="x-btn g-blue btn-primary" data-act="save">Save</button>
+  </div>`;
+}
+
+// Shown when the backend can't be reached, so a server-down state is obvious
+// rather than looking like a site or network problem.
+function offlineScreen() {
+  return `<div class="card swap"><div class="center-col swap" role="alert">
+    <div class="spacer"></div>
+    <span class="tile tile-ghost">${ic.offline}</span>
+    <span class="title sm">Can’t reach Landline</span>
+    <span class="sub">Landline isn’t responding. Make sure it’s running, then try again.</span>
+    <div class="spacer"></div>
+    <button class="x-btn g-blue btn-primary" data-act="retry">Try again</button>
+  </div></div>`;
+}
+
+// The footer shows the Landline number once config has loaded from the server.
 function renderFooter() {
-  footEl.hidden = !state.number;
-  if (!state.number) return;
+  footEl.hidden = !state.config;
+  if (!state.config) return;
   footEl.innerHTML = `
     <span class="foot-label">Text</span>
-    <span class="foot-number">${state.number.display}</span>
+    <span class="foot-number">${formatPhone(state.config.phone)}</span>
     <button class="x-btn l-ghost foot-icon" data-act="copy" aria-label="Copy number">${ic.copy}</button>
     <button class="x-btn l-ghost foot-icon" data-act="qr" aria-label="Show QR code">${ic.qr}</button>`;
 }
@@ -243,11 +262,12 @@ function manageLink() {
 }
 
 function scanScreen() {
+  const { d, n } = qrSvg(state.config ? state.config.smsLink : "sms:");
   return `<div class="card flush swap" style="align-items:center;text-align:center;gap:12px">
     <div class="scan-top"><button class="x-btn icon-btn left" data-act="back" aria-label="Back">${ic.back}</button></div>
     <span class="title sm" style="text-wrap:balance">Scan with your iPhone camera</span>
-    <div class="qr-frame"><svg viewBox="0 0 25 25" width="168" height="168" shape-rendering="crispEdges" role="img" aria-label="Code that opens Messages to ${state.number ? state.number.display : "your Landline number"}"><path d="${qrPath()}" fill="#0d0f14"/></svg></div>
-    <span class="sub" style="max-width:290px">It opens Messages with a text ready. Tap Send and you’re done.</span>
+    <div class="qr-frame"><svg viewBox="0 0 ${n} ${n}" width="168" height="168" shape-rendering="crispEdges" role="img" aria-label="Code that opens a text to your Landline agent"><path d="${d}" fill="#0d0f14"/></svg></div>
+    <span class="sub" style="max-width:290px">It opens a text to your Landline agent. Send a message to get started.</span>
     <button class="x-btn link-btn" data-act="done">Done</button>
   </div>`;
 }
@@ -279,27 +299,30 @@ function rowHtml(a) {
   return `<div class="row swap">${main}${confirm}</div>`;
 }
 
-// --- actions --------------------------------------------------------------
+// --- actions ---------------------------------------------------------------
 
+// Two-step handshake: create a connection (starts a browser), then upload the
+// captured session into it. loggedIn drives success vs error.
 async function startAdd() {
   state.adding = true;
   state.screen = "home";
   render();
 
   try {
-    const site = state.site;
     if (isExtension) {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      const s = siteFromTab(tab);
+      const conn = await createConnection({ domain: s.domain, title: s.title, favIconUrl: s.favIconUrl, url: s.url });
       const session = await captureSession(tab);
-      downloadJson(session, session.site.domain);
+      const updated = await uploadSession(conn.id, session);
+      if (!updated.loggedIn) {
+        await deleteConnection(conn.id).catch(() => {});
+        throw new Error("session did not log in");
+      }
+      state.accounts = (await listConnections()).map(toAccount);
     } else {
       await new Promise((r) => setTimeout(r, 1400)); // mock capture delay
-    }
-    state.accounts = [{ ...site }, ...state.accounts.filter((a) => a.domain !== site.domain)];
-    await saveAccounts(state.accounts);
-    if (!state.number) {
-      state.number = generateNumber();
-      await saveNumber(state.number);
+      state.accounts = [siteAsAccount(state.site), ...state.accounts.filter((a) => a.domain !== state.site.domain)];
     }
     state.adding = false;
     state.screen = "scan";
@@ -311,9 +334,18 @@ async function startAdd() {
 }
 
 async function removeAccount(domain) {
-  state.accounts = state.accounts.filter((a) => a.domain !== domain);
+  const acct = state.accounts.find((a) => a.domain === domain);
   state.confirming = null;
-  await saveAccounts(state.accounts);
+  try {
+    if (isExtension && acct && acct.connectionId) {
+      await deleteConnection(acct.connectionId);
+      state.accounts = (await listConnections()).map(toAccount);
+    } else {
+      state.accounts = state.accounts.filter((a) => a.domain !== domain);
+    }
+  } catch {
+    // Leave the list as-is on failure; the next open re-syncs.
+  }
   render();
 }
 
@@ -322,6 +354,8 @@ function bind() {
     const act = el.dataset.act;
     el.addEventListener("click", () => {
       if (act === "add") startAdd();
+      else if (act === "save") saveApiBase();
+      else if (act === "retry") init();
       else if (act === "manage") { state.screen = "manage"; render(); }
       else if (act === "back") { state.screen = "home"; state.confirming = null; render(); }
       else if (act === "done") { state.screen = "home"; render(); }
@@ -335,30 +369,64 @@ function bind() {
 }
 
 async function copyNumber(btn) {
-  if (!state.number) return;
-  try { await navigator.clipboard.writeText(state.number.digits); } catch {}
+  if (!state.config) return;
+  try { await navigator.clipboard.writeText(state.config.phone); } catch {}
   btn.innerHTML = ic.copied;
   setTimeout(() => { btn.innerHTML = ic.copy; }, 1600);
 }
 
-async function init() {
-  state.accounts = await loadAccounts();
-  state.number = await loadNumber();
+// Saves the server URL, then re-probes against it.
+async function saveApiBase() {
+  const input = document.getElementById("api-input");
+  const v = (input ? input.value : "").trim().replace(/\/+$/, "");
+  apiBase = v || DEFAULT_API_BASE;
   if (isExtension) {
+    try { await chrome.storage.local.set({ [API_BASE_KEY]: apiBase }); } catch {}
+  }
+  state.screen = "home";
+  await init();
+}
+
+settingsBtn.addEventListener("click", () => { state.screen = "settings"; render(); });
+
+async function init() {
+  state.offline = false;
+  if (isExtension) {
+    // Load the saved server URL and the last known config before any request.
+    try {
+      const stored = await chrome.storage.local.get([API_BASE_KEY, CONFIG_KEY]);
+      if (stored[API_BASE_KEY]) apiBase = stored[API_BASE_KEY];
+      if (stored[CONFIG_KEY]) state.config = stored[CONFIG_KEY];
+    } catch {}
+    // config is the reachability probe: if it fails and we have nothing cached,
+    // treat the backend as down.
+    try {
+      state.config = await getConfig();
+      chrome.storage.local.set({ [CONFIG_KEY]: state.config }).catch(() => {});
+    } catch {
+      if (!state.config) {
+        state.offline = true;
+        render();
+        return;
+      }
+    }
+    try { state.accounts = (await listConnections()).map(toAccount); } catch {}
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     state.site = siteFromTab(tab);
   } else {
-    // Design preview: a connectable site that isn't yet connected, with a number
-    // already assigned (as if a session was connected before). A URL hash forces
-    // a specific screen for design review; ignored in the real popup.
-    state.site = { domain: "verizon.com", name: "Verizon", letter: "V", color: "#c62a1f", favIconUrl: "" };
-    state.number = { display: "(617) 555-0142", digits: "+16175550142" };
+    // Design preview: a connectable site that isn't yet connected, with config
+    // already loaded. A URL hash forces a screen for design review.
+    state.config = { phone: "+16175550142", smsLink: "sms:+16175550142" };
+    state.site = { domain: "verizon.com", name: "Verizon", letter: "V", color: "#c62a1f", favIconUrl: "", url: "https://verizon.com", title: "Verizon" };
+    state.accounts = mockAccounts();
     const h = location.hash.slice(1);
     if (h === "nosite") state.site = null;
-    else if (h === "empty") { state.accounts = []; state.number = null; }
-    else if (h === "added") state.accounts = [{ ...state.site }, ...state.accounts];
+    else if (h === "empty") state.accounts = [];
+    else if (h === "added") state.accounts = [siteAsAccount(state.site), ...state.accounts];
     else if (h === "error") state.screen = "error";
     else if (h === "manage") state.screen = "manage";
+    else if (h === "offline") { state.offline = true; state.config = null; }
+    else if (h === "settings") state.screen = "settings";
   }
   render();
 }
