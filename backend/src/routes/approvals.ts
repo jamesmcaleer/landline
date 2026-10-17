@@ -29,6 +29,8 @@ const EXPIRY_CHECK_MS = 5_000;
 const APPROVAL_KINDS: readonly ApprovalKind[] = ["payment", "plan_change", "order", "settings", "other"];
 const APPROVE_PAGE = fileURLToPath(new URL("../../public/approve.html", import.meta.url));
 
+const DASHBOARD_PAGE = fileURLToPath(new URL("../../public/dashboard.html", import.meta.url));
+
 function publicUrl(): string {
   return process.env.PUBLIC_URL ?? "http://localhost:3000";
 }
@@ -110,15 +112,16 @@ approvalsRouter.post("/approvals", async (req, res) => {
   };
   approvals.set(approval.id, approval);
   save();
+  const url = `${publicUrl()}/a/${token}`;
   emit({
     type: "approval.requested",
     connectionId: approval.connectionId,
     approvalId: approval.id,
     summary: approval.summary,
     kind: approval.kind,
+    url,
   });
 
-  const url = `${publicUrl()}/a/${token}`;
   console.log(`Approval ${approval.id} requested: ${approval.summary}\n  ${url}`);
   void sendCallback({ connectionId: approval.connectionId, type: "approval", text: `Approve: ${approval.summary}`, url });
 
@@ -160,6 +163,10 @@ approvalsRouter.get("/approvals/:id/wait", (req, res) => {
 });
 
 // --- phone page ---
+
+approvalsRouter.get("/dashboard", (_req, res) => {
+  res.sendFile(DASHBOARD_PAGE, { dotfiles: "allow" });
+});
 
 approvalsRouter.get("/a/:token", (_req, res) => {
   res.sendFile(APPROVE_PAGE, { dotfiles: "allow" });

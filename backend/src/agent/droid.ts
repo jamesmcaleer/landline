@@ -184,6 +184,7 @@ export async function createConnectionAgent(opts: { connectionId: string; cdpUrl
       const timer = setTimeout(() => {
         cancelled = true;
         log("turn timed out");
+        emit({ type: "task.error", connectionId, text: "timed out" });
         void sendCallback({ connectionId, type: "error", text: "timed out" });
         void interrupt();
       }, TURN_TIMEOUT_MS);
@@ -224,8 +225,13 @@ export async function createConnectionAgent(opts: { connectionId: string; cdpUrl
         }
         log(`turn end after ${Math.round((Date.now() - startedAt) / 1000)}s`, failure ? `(error: ${failure})` : "");
         if (cancelled) return; // stop() or the timeout already sent the callback
-        if (failure) await sendCallback({ connectionId, type: "error", text: failure });
-        else if (finalText) await sendCallback({ connectionId, type: "result", text: finalText });
+        if (failure) {
+          emit({ type: "task.error", connectionId, text: failure });
+          await sendCallback({ connectionId, type: "error", text: failure });
+        } else if (finalText) {
+          emit({ type: "task.done", connectionId, text: finalText });
+          await sendCallback({ connectionId, type: "result", text: finalText });
+        }
       })();
     },
 
@@ -233,6 +239,7 @@ export async function createConnectionAgent(opts: { connectionId: string; cdpUrl
       cancelled = true;
       await interrupt();
       state = "idle";
+      emit({ type: "task.error", connectionId, text: "stopped" });
       await sendCallback({ connectionId, type: "error", text: "stopped" });
     },
 
