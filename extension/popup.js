@@ -152,18 +152,12 @@ const state = {
 
 const bodyEl = document.getElementById("body");
 const footEl = document.getElementById("foot");
-const accountsBtn = document.getElementById("accounts-btn");
-const countPill = document.getElementById("count-pill");
 
 function isConnected(domain) {
   return state.accounts.some((a) => a.domain === domain);
 }
 
 function render() {
-  const onHome = state.screen === "home" || state.screen === "error";
-  accountsBtn.hidden = !onHome;
-  countPill.textContent = state.accounts.length;
-
   if (state.screen === "scan") bodyEl.innerHTML = scanScreen();
   else if (state.screen === "manage") bodyEl.innerHTML = manageScreen();
   else bodyEl.innerHTML = homeScreen();
@@ -180,8 +174,8 @@ function renderFooter() {
   footEl.innerHTML = `
     <span class="foot-label">Text</span>
     <span class="foot-number">${state.number.display}</span>
-    <button class="x-btn l-ghost foot-icon" data-act="qr" aria-label="Show QR code">${ic.qr}</button>
-    <button class="x-btn l-ghost foot-icon" data-act="copy" aria-label="Copy number">${ic.copy}</button>`;
+    <button class="x-btn l-ghost foot-icon" data-act="copy" aria-label="Copy number">${ic.copy}</button>
+    <button class="x-btn l-ghost foot-icon" data-act="qr" aria-label="Show QR code">${ic.qr}</button>`;
 }
 
 function homeScreen() {
@@ -254,7 +248,6 @@ function scanScreen() {
     <span class="title sm" style="text-wrap:balance">Scan with your iPhone camera</span>
     <div class="qr-frame"><svg viewBox="0 0 25 25" width="168" height="168" shape-rendering="crispEdges" role="img" aria-label="Code that opens Messages to ${state.number ? state.number.display : "your Landline number"}"><path d="${qrPath()}" fill="#0d0f14"/></svg></div>
     <span class="sub" style="max-width:290px">It opens Messages with a text ready. Tap Send and you’re done.</span>
-    <div class="spacer"></div>
     <button class="x-btn link-btn" data-act="done">Done</button>
   </div>`;
 }
@@ -347,8 +340,6 @@ async function copyNumber(btn) {
   btn.innerHTML = ic.copied;
   setTimeout(() => { btn.innerHTML = ic.copy; }, 1600);
 }
-
-accountsBtn.addEventListener("click", () => { state.screen = "manage"; render(); });
 
 async function init() {
   state.accounts = await loadAccounts();
