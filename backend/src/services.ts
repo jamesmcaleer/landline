@@ -1,6 +1,8 @@
 // Operations shared by several routers: resolving approvals and removing connections.
 import type { ApprovalStatus, Connection } from "@landline/shared";
 import { createConnectionAgent, type ConnectionAgent } from "./agent/droid.js";
+import { stopScreencast } from "./agent/screencast.js";
+import { loadSession } from "./browser/session.js";
 import { getProvider } from "./browser/provider.js";
 import { approvals, connections, emit, save, type StoredConnection } from "./store.js";
 
@@ -68,11 +70,44 @@ export function toPublicConnection(c: StoredConnection): Connection {
   return { id: c.id, site: c.site, loggedIn: c.loggedIn, state: agents.get(c.id)?.state() ?? "idle", createdAt: c.createdAt };
 }
 
+const reloads = new Map<string, Promise<void>>();
+
+/** Loads the saved session again (a restarted sandbox has an empty profile) and emits connection.ready. */
+export function reloadSession(connectionId: string): Promise<void> {
+  const running = reloads.get(connectionId);
+  if (running) return running;
+  const connection = connections.get(connectionId);
+  if (!connection?.session) return Promise.resolve();
+  const promise = (async () => {
+    connection.loggedIn = await loadSession(connection.cdpUrl, connection.session!);
+    save();
+    emit({ type: "connection.ready", connectionId, loggedIn: connection.loggedIn });
+    console.log(`Reloaded session for ${connectionId} (loggedIn=${connection.loggedIn})`);
+  })()
+    .catch((err) => console.error(`Could not reload session for ${connectionId}:`, err instanceof Error ? err.message : err))
+    .finally(() => reloads.delete(connectionId));
+  reloads.set(connectionId, promise);
+  return promise;
+}
+
+/** Called when the sandbox relay reconnects. Reloads the session only when no task is running. */
+export function onRelayReconnected(connectionId: string): void {
+  const connection = connections.get(connectionId);
+  if (!connection?.session) return;
+  const state = agents.get(connectionId)?.state() ?? "idle";
+  if (state !== "idle") {
+    console.log(`Relay for ${connectionId} reconnected while ${state}; not reloading the session`);
+    return;
+  }
+  void reloadSession(connectionId);
+}
+
 export async function removeConnection(connectionId: string): Promise<void> {
   const connection = connections.get(connectionId);
   if (!connection) return;
   const agent = agents.get(connectionId);
   agents.delete(connectionId);
+  stopScreencast(connectionId);
   await agent?.close().catch((err) => console.error(`Could not close agent for ${connectionId}:`, err));
   for (const approval of approvals.values()) {
     if (approval.connectionId === connectionId) resolveApproval(approval.id, "declined", "connection removed");

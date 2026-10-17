@@ -9,7 +9,8 @@ import type {
   SessionUploadArgs,
   Site,
 } from "@landline/shared";
-import { getProvider } from "../browser/provider.js";
+import { startScreencast } from "../agent/screencast.js";
+import { getProvider, type StartedBrowser } from "../browser/provider.js";
 import { loadSession } from "../browser/session.js";
 import { removeConnection, toPublicConnection } from "../services.js";
 import { connections, emit, newId, save, type StoredConnection } from "../store.js";
@@ -56,9 +57,9 @@ connectionsRouter.post("/connections", async (req, res) => {
   const args: CreateConnectionArgs = { site };
 
   const id = newId("con");
-  let cdpUrl: string;
+  let started: StartedBrowser;
   try {
-    ({ cdpUrl } = await getProvider().start(id));
+    started = await getProvider().start(id);
   } catch (err) {
     console.error("Could not start browser:", err);
     res.status(500).json({ error: "could not start browser" } satisfies ApiError);
@@ -70,11 +71,13 @@ connectionsRouter.post("/connections", async (req, res) => {
     site: args.site,
     loggedIn: null,
     createdAt: new Date().toISOString(),
-    cdpUrl,
+    cdpUrl: started.cdpUrl,
+    ...(started.sandboxName ? { sandboxName: started.sandboxName, sandboxToken: started.sandboxToken } : {}),
   };
   connections.set(id, connection);
   save();
   emit({ type: "connection.created", connectionId: id, site: args.site.domain });
+  startScreencast(id, connection.cdpUrl);
   res.status(201).json({ connection: toPublicConnection(connection) } satisfies ConnectionResult);
 });
 

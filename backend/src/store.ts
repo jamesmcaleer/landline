@@ -3,7 +3,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Approval, Connection, Event, EventEnvelope, SessionExport } from "@landline/shared";
 
-export type StoredConnection = Omit<Connection, "state"> & { cdpUrl: string; session?: SessionExport };
+export type StoredConnection = Omit<Connection, "state"> & { cdpUrl: string; session?: SessionExport; sandboxName?: string; sandboxToken?: string };
 export type StoredApproval = Approval & { tokenHash: string };
 export interface Passkey { credentialId: string; publicKey: string; counter: number }
 

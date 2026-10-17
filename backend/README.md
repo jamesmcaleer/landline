@@ -48,7 +48,30 @@ Dashboard events stream over `ws://localhost:3000/ws/dashboard`.
 ## Notes
 
 - State lives in memory and is dumped to `backend/data.json` after each change. Browsers are not restarted after a server restart, so stored connections point at dead CDP URLs.
-- `BROWSER_PROVIDER=local` spawns a Chromium per connection on this machine. `chalk` (one sandbox per connection) is not implemented yet.
+- `BROWSER_PROVIDER=local` spawns a Chromium per connection on this machine. `chalk` runs one Chalk sandbox per connection (see "Chalk sandbox provider").
+
+## Chalk sandbox provider
+
+`BROWSER_PROVIDER=chalk` runs each connection's Chromium in its own Chalk sandbox instead of on this machine.
+
+Setup:
+
+```sh
+chalk login                  # once; the helper uses the Chalk CLI login (~/.chalk.yml)
+sh backend/scripts/setup-chalk.sh   # creates backend/sandbox/.venv with chalkcompute (needs uv, Python 3.11-3.14)
+```
+
+`PUBLIC_URL` must be the public https host that reaches this backend (for example `cloudflared tunnel --url http://localhost:3000`), because the sandbox dials it. It is converted to `wss://`.
+
+How it works: sandboxes accept no inbound connections, so a relay inside the sandbox (`backend/sandbox/relay.py`) dials `wss://<PUBLIC_URL>/ws/sandbox/<connectionId>` with the header `x-landline-token` (a random token the backend made for that connection). The backend (`src/browser/relay-hub.ts`) multiplexes CDP over that one socket. The `cdpUrl` handed to Playwright MCP, `cdp.ts` and the network log is `ws://127.0.0.1:<PORT>/cdp/<connectionId>`; every client socket on that path gets its own channel and its own socket to Chromium inside the sandbox. `GET /cdp/<id>/json/version` also works.
+
+Protocol (JSON text frames): relay sends `{t:"hello",chromium}`, `{t:"msg",ch,d}`, `{t:"close",ch}`, `{t:"ping"}`/`{t:"pong"}`; backend sends `{t:"open",ch}`, `{t:"msg",ch,d}`, `{t:"close",ch}`, `{t:"ping"}`/`{t:"pong"}`. `d` is the raw CDP JSON string. The relay reconnects forever (1 s to 15 s backoff). When it reconnects for a connection with a saved session and no task running, the backend loads the session again (a sandbox restart wipes the profile) and emits `connection.ready`.
+
+The sandbox name and token are saved in `data.json`, so after a backend restart the connection reattaches to its sandbox instead of creating a new one. Keep `data.json` private: it holds the relay tokens.
+
+Cost: a sandbox is billed while it exists, also when idle. `DELETE /connections/:id` terminates it. A sandbox left behind can be removed with `backend/sandbox/.venv/bin/python backend/sandbox/sandbox_ctl.py stop lndl-<id>`.
+
+The dashboard socket also carries live screencast frames `{type:"frame",connectionId,jpeg}` (base64 JPEG, at most 5 per second). They are not stored in `/events`.
 
 ## Environment variables
 
