@@ -48,4 +48,4 @@ Dashboard events stream over `ws://localhost:3000/ws/dashboard`.
 ## Notes
 
 - State lives in memory and is dumped to `backend/data.json` after each change. Browsers are not restarted after a server restart, so stored connections point at dead CDP URLs.
-- `BROWSER_HOST=remote` uses `CDP_URL` for every connection.
+- `BROWSER_PROVIDER=local` spawns a Chromium per connection on this machine. `chalk` (one sandbox per connection) is not implemented yet.

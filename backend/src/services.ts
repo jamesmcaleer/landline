@@ -1,6 +1,6 @@
 // Operations shared by several routers: resolving approvals and removing connections.
 import type { ApprovalStatus } from "@landline/shared";
-import { getHost } from "./browser/host.js";
+import { getProvider } from "./browser/provider.js";
 import { approvals, connections, emit, save } from "./store.js";
 
 const waiters = new Map<string, Array<() => void>>();
@@ -39,7 +39,7 @@ export async function removeConnection(connectionId: string): Promise<void> {
     if (approval.connectionId === connectionId) resolveApproval(approval.id, "declined", "connection removed");
   }
   try {
-    await getHost().stop(connectionId);
+    await getProvider().stop(connectionId);
   } catch (err) {
     console.error(`Could not stop browser for ${connectionId}:`, err);
   }

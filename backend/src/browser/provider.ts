@@ -3,8 +3,10 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright";
+import { ChalkProvider } from "./chalk.js";
 
-export interface BrowserHost {
+/** Gives each connection its own browser, reachable over CDP. */
+export interface BrowserProvider {
   start(connectionId: string): Promise<{ cdpUrl: string }>;
   stop(connectionId: string): Promise<void>;
 }
@@ -18,8 +20,23 @@ const DEVTOOLS_LINE = /DevTools listening on (ws:\/\/\S+)/;
 const START_TIMEOUT_MS = 30_000;
 
 /** Spawns one headful Chromium per connection and reads its CDP URL from stderr. */
-class LocalHost implements BrowserHost {
+export class LocalProvider implements BrowserProvider {
   private running = new Map<string, RunningBrowser>();
+
+  constructor() {
+    // Do not leave Chromium processes behind when the backend stops.
+    process.on("exit", () => this.killAll());
+    for (const signal of ["SIGINT", "SIGTERM"] as const) {
+      process.on(signal, () => {
+        this.killAll();
+        process.exit(0);
+      });
+    }
+  }
+
+  private killAll(): void {
+    for (const browser of this.running.values()) browser.process.kill();
+  }
 
   async start(connectionId: string): Promise<{ cdpUrl: string }> {
     const userDataDir = await mkdtemp(join(tmpdir(), `landline-${connectionId}-`));
@@ -85,20 +102,10 @@ function readCdpUrl(child: ChildProcess): Promise<string> {
   });
 }
 
-/** Uses a Chromium somebody else runs. Every connection shares it. */
-class RemoteHost implements BrowserHost {
-  async start(): Promise<{ cdpUrl: string }> {
-    const cdpUrl = process.env.CDP_URL;
-    if (!cdpUrl) throw new Error("CDP_URL is not set but BROWSER_HOST=remote");
-    return { cdpUrl };
-  }
+let provider: BrowserProvider | undefined;
 
-  async stop(): Promise<void> {}
-}
-
-let host: BrowserHost | undefined;
-
-export function getHost(): BrowserHost {
-  host ??= process.env.BROWSER_HOST === "remote" ? new RemoteHost() : new LocalHost();
-  return host;
+/** Picks the provider from BROWSER_PROVIDER (local | chalk). Defaults to local. */
+export function getProvider(): BrowserProvider {
+  provider ??= process.env.BROWSER_PROVIDER === "chalk" ? new ChalkProvider() : new LocalProvider();
+  return provider;
 }

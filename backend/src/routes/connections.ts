@@ -10,7 +10,7 @@ import type {
   SessionUploadArgs,
   Site,
 } from "@landline/shared";
-import { getHost } from "../browser/host.js";
+import { getProvider } from "../browser/provider.js";
 import { loadSession } from "../browser/session.js";
 import { removeConnection } from "../services.js";
 import { connections, emit, newId, save, type StoredConnection } from "../store.js";
@@ -64,7 +64,7 @@ connectionsRouter.post("/connections", async (req, res) => {
   const id = newId("con");
   let cdpUrl: string;
   try {
-    ({ cdpUrl } = await getHost().start(id));
+    ({ cdpUrl } = await getProvider().start(id));
   } catch (err) {
     console.error("Could not start browser:", err);
     res.status(500).json({ error: "could not start browser" } satisfies ApiError);
