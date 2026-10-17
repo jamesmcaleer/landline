@@ -15,6 +15,13 @@ eventsRouter.get("/events", (req, res) => {
 /** Forwards every emitted event as JSON to each dashboard socket. */
 export function attachDashboardSocket(server: http.Server): void {
   const wss = new WebSocketServer({ server, path: "/ws/dashboard" });
+  wss.on("connection", (socket, request) => {
+    // Replay stored events newer than ?since=<id> before any live ones.
+    const since = Number(new URL(request.url ?? "", "http://localhost").searchParams.get("since") ?? 0);
+    for (const envelope of events) {
+      if (envelope.id > (Number.isFinite(since) ? since : 0)) socket.send(JSON.stringify(envelope));
+    }
+  });
   onEvent((envelope) => {
     const message = JSON.stringify(envelope);
     for (const client of wss.clients) {
