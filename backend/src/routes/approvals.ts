@@ -191,7 +191,12 @@ approvalsRouter.get("/a/:token/state", (req, res) => {
     return;
   }
   const site: Site = connection.site;
-  res.json({ approval: toPublicApproval(approval), site, hasPasskey: passkey !== null });
+  res.json({
+    approval: toPublicApproval(approval),
+    site,
+    connection: { createdAt: connection.createdAt },
+    hasPasskey: passkey !== null,
+  });
 });
 
 const challenges = new Map<string, string>();
