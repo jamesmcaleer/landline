@@ -37,11 +37,11 @@ function toExportCookie(c) {
   return out;
 }
 
-// Reads localStorage + sessionStorage from inside the page. Returned to the
-// extension as a plain object. Injected via chrome.scripting, so it runs in the
-// page's own context where web storage lives.
-function readWebStorageInPage() {
-  const dump = (store) => {
+// Reads everything that lives in the page's origin: web storage, IndexedDB, and
+// the browser fingerprint. Injected via chrome.scripting, so it runs in the
+// page's own context where this state lives. Async because IndexedDB is async.
+async function readPageStateInPage() {
+  const dumpWebStorage = (store) => {
     const out = {};
     for (let i = 0; i < store.length; i++) {
       const key = store.key(i);
@@ -49,10 +49,75 @@ function readWebStorageInPage() {
     }
     return out;
   };
+
+  const reqToPromise = (req) =>
+    new Promise((resolve, reject) => {
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+
+  // Best-effort IndexedDB dump. Values are whatever structured-clone types the
+  // app stored; JSON serialization keeps strings, numbers, booleans, plain
+  // objects and arrays, and turns Dates into strings. Binary values (Blob,
+  // ArrayBuffer) don't survive and are left out. Good enough for auth tokens,
+  // which are almost always strings or plain objects.
+  const readIndexedDB = async () => {
+    if (!window.indexedDB || typeof indexedDB.databases !== "function") return [];
+    let infos;
+    try {
+      infos = await indexedDB.databases();
+    } catch {
+      return [];
+    }
+    const dbs = [];
+    for (const info of infos) {
+      if (!info.name) continue;
+      let db;
+      try {
+        db = await new Promise((resolve, reject) => {
+          const req = indexedDB.open(info.name);
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+          req.onblocked = () => reject(new Error("blocked"));
+        });
+      } catch {
+        continue;
+      }
+      const storeNames = Array.from(db.objectStoreNames);
+      const stores = [];
+      if (storeNames.length) {
+        const tx = db.transaction(storeNames, "readonly");
+        for (const name of storeNames) {
+          const os = tx.objectStore(name);
+          let keys, values;
+          try {
+            [keys, values] = await Promise.all([
+              reqToPromise(os.getAllKeys()),
+              reqToPromise(os.getAll()),
+            ]);
+          } catch {
+            continue;
+          }
+          const records = values.map((value, i) => ({ key: keys[i], value }));
+          stores.push({
+            name,
+            keyPath: os.keyPath, // string | string[] | null
+            autoIncrement: os.autoIncrement,
+            records,
+          });
+        }
+      }
+      dbs.push({ name: db.name, version: db.version, stores });
+      db.close();
+    }
+    return dbs;
+  };
+
   return {
     origin: window.location.origin,
-    localStorage: dump(window.localStorage),
-    sessionStorage: dump(window.sessionStorage),
+    localStorage: dumpWebStorage(window.localStorage),
+    sessionStorage: dumpWebStorage(window.sessionStorage),
+    indexedDB: await readIndexedDB(),
     // Collected here so the values come from the page itself, not the extension.
     browser: {
       userAgent: navigator.userAgent,
@@ -79,7 +144,7 @@ export async function captureSession(tab) {
 
   const [{ result: page }] = await chrome.scripting.executeScript({
     target: { tabId: tab.id },
-    func: readWebStorageInPage,
+    func: readPageStateInPage,
   });
 
   return {
@@ -97,6 +162,7 @@ export async function captureSession(tab) {
         origin: page.origin,
         localStorage: page.localStorage,
         sessionStorage: page.sessionStorage,
+        indexedDB: page.indexedDB,
       },
     ],
   };

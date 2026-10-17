@@ -12,6 +12,54 @@
 import { readFile } from "node:fs/promises";
 import { chromium } from "playwright";
 
+// Runs in the page. Recreates each captured IndexedDB database, its object
+// stores, and their records. Mirrors the capture in extension/capture.js.
+function restoreIndexedDB(dbs) {
+  const openDb = (spec) =>
+    new Promise((resolve, reject) => {
+      const req = indexedDB.open(spec.name, spec.version);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        for (const s of spec.stores) {
+          if (!db.objectStoreNames.contains(s.name)) {
+            db.createObjectStore(s.name, {
+              keyPath: s.keyPath === null ? undefined : s.keyPath,
+              autoIncrement: s.autoIncrement,
+            });
+          }
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+      req.onblocked = () => reject(new Error("blocked"));
+    });
+
+  return (async () => {
+    for (const spec of dbs) {
+      const db = await openDb(spec);
+      const names = spec.stores.map((s) => s.name).filter((n) => db.objectStoreNames.contains(n));
+      if (names.length) {
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction(names, "readwrite");
+          for (const s of spec.stores) {
+            if (!db.objectStoreNames.contains(s.name)) continue;
+            const os = tx.objectStore(s.name);
+            for (const rec of s.records) {
+              // Inline key (keyPath set): the key lives in the value. Out-of-line
+              // key: pass it explicitly.
+              if (s.keyPath !== null) os.put(rec.value);
+              else os.put(rec.value, rec.key);
+            }
+          }
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        });
+      }
+      db.close();
+    }
+  })();
+}
+
 function toPlaywrightCookie(c) {
   return {
     name: c.name,
@@ -71,6 +119,16 @@ async function main() {
   }
 
   const page = await context.newPage();
+
+  // Restore IndexedDB per origin before loading the target page. We visit the
+  // origin, write the databases, then navigate to the real URL so the page's
+  // own scripts see a populated IndexedDB from the start.
+  for (const o of session.origins || []) {
+    if (!o.indexedDB || o.indexedDB.length === 0) continue;
+    await page.goto(o.origin, { waitUntil: "domcontentloaded" });
+    await page.evaluate(restoreIndexedDB, o.indexedDB);
+  }
+
   await page.goto(session.site.url, { waitUntil: "networkidle" });
   await page.screenshot({ path: outPath, fullPage: true });
 
