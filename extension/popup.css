@@ -31,6 +31,9 @@ body {
   color: var(--ink);
   font-family: "Instrument Sans", -apple-system, system-ui, sans-serif;
   font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 /* Color blobs behind the glass */
@@ -42,11 +45,12 @@ body {
 
 .shell { position: relative; display: flex; flex-direction: column; height: 600px; }
 
-/* Top bar */
-.bar { display: flex; align-items: center; gap: 10px; padding: 16px 16px 8px 18px; }
-.brand { display: flex; align-items: center; gap: 10px; flex: 1; }
-.brand-mark { width: 28px; height: 28px; border-radius: 8px; display: block; }
-.brand-name { font-size: 17px; font-weight: 600; }
+/* Top bar — fixed height so the logo sits at the same point whether or not the
+   Accounts button is shown. */
+.bar { display: flex; align-items: center; gap: 11px; height: 64px; box-sizing: border-box; padding: 16px 16px 8px 18px; }
+.brand { display: flex; align-items: center; gap: 11px; flex: 1; }
+.brand-mark { width: 34px; height: 34px; border-radius: 9px; display: block; }
+.brand-name { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
 .accounts-btn { height: 36px; padding: 0 14px; border-radius: 18px; font-size: 14px; font-weight: 600; gap: 8px; }
 .count-pill {
   min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px;
