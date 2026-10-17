@@ -29,7 +29,7 @@ export interface Approval {
 
 export interface ApiError { error: string }
 
-export interface ConfigResult { phone: string; smsLink: string }
+export interface ConfigResult { phone: string }
 export interface CreateConnectionArgs { site: Site }
 export interface SessionUploadArgs { encoding: "plain"; session: SessionExport }
 export interface ConnectionResult { connection: Connection }

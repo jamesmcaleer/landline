@@ -74,7 +74,9 @@ export async function loadSession(cdpUrl: string, session: SessionExport): Promi
     await page("Page.enable");
     await page("Page.addScriptToEvaluateOnNewDocument", { source: storageScript(session) });
 
-    const loaded = cdp.waitForEvent("Page.loadEventFired", sessionId, LOAD_TIMEOUT_MS);
+    // DOMContentLoaded, not the full load event: login redirects happen before then,
+    // and heavy pages can take most of the timeout to finish loading every ad and image.
+    const loaded = cdp.waitForEvent("Page.domContentEventFired", sessionId, LOAD_TIMEOUT_MS);
     await page("Page.navigate", { url: session.site.url });
     await loaded;
     await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));

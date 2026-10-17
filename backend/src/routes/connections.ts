@@ -43,7 +43,7 @@ function isSessionExport(value: unknown): value is SessionExport {
 
 connectionsRouter.get("/config", (_req, res) => {
   const phone = process.env.LANDLINE_PHONE ?? "";
-  const body: ConfigResult = { phone, smsLink: "sms:" + phone };
+  const body: ConfigResult = { phone };
   res.json(body);
 });
 

@@ -18,6 +18,7 @@ import type {
   Site,
 } from "@landline/shared";
 import { sendCallback } from "../callback.js";
+import { sendText } from "../photon.js";
 import { removeConnection, resolveApproval, waitForResolution } from "../services.js";
 import { approvals, connections, emit, newId, passkey, save, setPasskey, type StoredApproval } from "../store.js";
 
@@ -33,6 +34,24 @@ const DASHBOARD_PAGE = fileURLToPath(new URL("../../public/dashboard.html", impo
 
 function publicUrl(): string {
   return process.env.PUBLIC_URL ?? "http://localhost:3000";
+}
+
+/**
+ * Texts the approval link to the verifier, who is often a caretaker rather than the caller.
+ * Skipped when VERIFIER_PHONE is unset. Errors are logged and swallowed, like callbacks.
+ */
+async function textVerifier(approval: StoredApproval, url: string): Promise<void> {
+  const verifier = process.env.VERIFIER_PHONE;
+  if (!verifier) return;
+  const site = connections.get(approval.connectionId)?.site.title || "Landline";
+  const minutes = Math.round(APPROVAL_LIFETIME_MS / 60_000);
+  const text = `${site} needs your approval: ${approval.summary}\n\nApprove with Face ID within ${minutes} minutes:\n${url}`;
+  try {
+    await sendText(verifier, text, `approval:${approval.id}`);
+    console.log(`Texted approval ${approval.id} to the verifier`);
+  } catch (err) {
+    console.error("Could not text the approval link:", err instanceof Error ? err.message : err);
+  }
 }
 
 function toPublicApproval(a: StoredApproval): Approval {
@@ -124,6 +143,7 @@ approvalsRouter.post("/approvals", async (req, res) => {
 
   console.log(`Approval ${approval.id} requested: ${approval.summary}\n  ${url}`);
   void sendCallback({ connectionId: approval.connectionId, type: "approval", text: `Approve: ${approval.summary}`, url });
+  void textVerifier(approval, url);
 
   res.status(201).json({ approval: toPublicApproval(approval) } satisfies ApprovalResult);
 });
