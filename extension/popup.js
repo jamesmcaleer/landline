@@ -1,10 +1,16 @@
 import { captureSession } from "./capture.js";
 
-// Placeholder until pairing/backend exist. The number is the real mechanism;
-// the QR is just a shortcut to it.
-const LANDLINE_DISPLAY = "(617) 555-0142";
-const LANDLINE_DIGITS = "+16175550142";
 const ACCOUNTS_KEY = "landline.accounts";
+const NUMBER_KEY = "landline.number";
+
+// Stub for pairing/backend: a Landline number is assigned on the first
+// connection and kept from then on. Real version comes from the server.
+function generateNumber() {
+  const area = ["617", "857", "781", "339"][Math.floor(Math.random() * 4)];
+  const mid = String(Math.floor(200 + Math.random() * 800));
+  const last = String(Math.floor(1000 + Math.random() * 9000));
+  return { display: `(${area}) ${mid}-${last}`, digits: `+1${area}${mid}${last}` };
+}
 
 // Runs as a real extension popup when the chrome APIs exist, and as a plain
 // web page (for design preview) otherwise, using mock data.
@@ -61,6 +67,17 @@ async function loadAccounts() {
 async function saveAccounts(accounts) {
   if (!isExtension) return;
   await chrome.storage.local.set({ [ACCOUNTS_KEY]: accounts });
+}
+
+async function loadNumber() {
+  if (!isExtension) return null;
+  const got = await chrome.storage.local.get(NUMBER_KEY);
+  return got[NUMBER_KEY] || null;
+}
+
+async function saveNumber(number) {
+  if (!isExtension) return;
+  await chrome.storage.local.set({ [NUMBER_KEY]: number });
 }
 
 function mockAccounts() {
@@ -125,6 +142,9 @@ const ic = {
   globe: `<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg>`,
   back: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>`,
   chevron: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>`,
+  copy: `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M15 9V6.5A2.5 2.5 0 0 0 12.5 4h-6A2.5 2.5 0 0 0 4 6.5v6A2.5 2.5 0 0 0 6.5 15H9"/></svg>`,
+  copied: `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#1f8a42" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`,
+  qr: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><path d="M14 14h2v2M20 14v.01M14 20h.01M18 18h2v2M18 20v.01"/></svg>`,
 };
 
 function tileHtml(obj, cls = "tile") {
@@ -139,10 +159,12 @@ const state = {
   adding: false,
   site: null,
   accounts: [],
+  number: null, // { display, digits }, assigned on first connection
   confirming: null, // domain being revoke-confirmed
 };
 
 const bodyEl = document.getElementById("body");
+const footEl = document.getElementById("foot");
 const accountsBtn = document.getElementById("accounts-btn");
 const countPill = document.getElementById("count-pill");
 
@@ -159,7 +181,20 @@ function render() {
   else if (state.screen === "manage") bodyEl.innerHTML = manageScreen();
   else bodyEl.innerHTML = homeScreen();
 
+  renderFooter();
   bind();
+}
+
+// The number only exists once a session has been connected, so the footer (and
+// the QR shortcut) appear only then.
+function renderFooter() {
+  footEl.hidden = !state.number;
+  if (!state.number) return;
+  footEl.innerHTML = `
+    <span class="foot-label">Text</span>
+    <span class="foot-number">${state.number.display}</span>
+    <button class="x-btn l-ghost foot-icon" data-act="qr" aria-label="Show QR code">${ic.qr}</button>
+    <button class="x-btn l-ghost foot-icon" data-act="copy" aria-label="Copy number">${ic.copy}</button>`;
 }
 
 function homeScreen() {
@@ -187,7 +222,7 @@ function homeScreen() {
       <div class="spacer"></div>
       ${tileHtml(s)}
       <span class="title" style="margin-top:6px">${s.name}</span>
-      <span class="sub">Add it to iMessage. Then text to check your bill or make a change.</span>
+      <span class="sub">Connect this browser session to iMessage.</span>
       <div class="spacer"></div>
       <button class="x-btn g-blue btn-primary" disabled style="opacity:.9;gap:10px">${ic.spinner}<span role="status">Adding…</span></button>
     </div></div>`;
@@ -196,7 +231,7 @@ function homeScreen() {
       <div class="spacer"></div>
       <span class="tile-wrap">${tileHtml(s)}<span class="tile-badge">${ic.check}</span></span>
       <span class="title md" style="margin-top:10px">${s.name} is on iMessage</span>
-      <span class="sub">Text the number below anytime to check your bill or make a change.</span>
+      <span class="sub">Text the number below anytime.</span>
       <div class="spacer"></div>
     </div>${manageLink()}</div>`;
   } else {
@@ -205,7 +240,7 @@ function homeScreen() {
       ${tileHtml(s)}
       <span class="eyebrow">On this tab</span>
       <span class="title">${s.name}</span>
-      <span class="sub">Add it to iMessage. Then text to check your bill or make a change.</span>
+      <span class="sub">Connect this browser session to iMessage.</span>
       <div class="spacer"></div>
       <button class="x-btn g-blue btn-primary" data-act="add">${ic.message} Add to iMessage</button>
     </div>${manageLink()}</div>`;
@@ -229,7 +264,7 @@ function scanScreen() {
   return `<div class="card flush swap" style="align-items:center;text-align:center;gap:12px">
     <div class="scan-top"><button class="x-btn icon-btn left" data-act="back" aria-label="Back">${ic.back}</button></div>
     <span class="title sm" style="text-wrap:balance">Scan with your iPhone camera</span>
-    <div class="qr-frame"><svg viewBox="0 0 25 25" width="168" height="168" shape-rendering="crispEdges" role="img" aria-label="Code that opens Messages to ${LANDLINE_DISPLAY}"><path d="${qrPath()}" fill="#0d0f14"/></svg></div>
+    <div class="qr-frame"><svg viewBox="0 0 25 25" width="168" height="168" shape-rendering="crispEdges" role="img" aria-label="Code that opens Messages to ${state.number ? state.number.display : "your Landline number"}"><path d="${qrPath()}" fill="#0d0f14"/></svg></div>
     <span class="sub" style="max-width:290px">It opens Messages with a text ready. Tap Send and you’re done.</span>
     <div class="spacer"></div>
     <button class="x-btn link-btn" data-act="done">Done</button>
@@ -283,6 +318,10 @@ async function startAdd() {
     }
     state.accounts = [{ ...site, since: Date.now() }, ...state.accounts.filter((a) => a.domain !== site.domain)];
     await saveAccounts(state.accounts);
+    if (!state.number) {
+      state.number = generateNumber();
+      await saveNumber(state.number);
+    }
     state.adding = false;
     state.screen = "scan";
   } catch {
@@ -300,13 +339,15 @@ async function removeAccount(domain) {
 }
 
 function bind() {
-  bodyEl.querySelectorAll("[data-act]").forEach((el) => {
+  document.querySelectorAll("#body [data-act], #foot [data-act]").forEach((el) => {
     const act = el.dataset.act;
     el.addEventListener("click", () => {
       if (act === "add") startAdd();
       else if (act === "manage") { state.screen = "manage"; render(); }
       else if (act === "back") { state.screen = "home"; state.confirming = null; render(); }
       else if (act === "done") { state.screen = "home"; render(); }
+      else if (act === "qr") { state.screen = "scan"; render(); }
+      else if (act === "copy") copyNumber(el);
       else if (act === "ask") { state.confirming = el.dataset.domain; render(); }
       else if (act === "keep") { state.confirming = null; render(); }
       else if (act === "remove") removeAccount(el.dataset.domain);
@@ -314,31 +355,30 @@ function bind() {
   });
 }
 
-accountsBtn.addEventListener("click", () => { state.screen = "manage"; render(); });
+async function copyNumber(btn) {
+  if (!state.number) return;
+  try { await navigator.clipboard.writeText(state.number.digits); } catch {}
+  btn.innerHTML = ic.copied;
+  setTimeout(() => { btn.innerHTML = ic.copy; }, 1600);
+}
 
-const copyBtn = document.getElementById("copy-btn");
-copyBtn.addEventListener("click", async () => {
-  try { await navigator.clipboard.writeText(LANDLINE_DIGITS); } catch {}
-  copyBtn.querySelector(".copy-idle").hidden = true;
-  copyBtn.querySelector(".copy-done").hidden = false;
-  setTimeout(() => {
-    copyBtn.querySelector(".copy-idle").hidden = false;
-    copyBtn.querySelector(".copy-done").hidden = true;
-  }, 1600);
-});
+accountsBtn.addEventListener("click", () => { state.screen = "manage"; render(); });
 
 async function init() {
   state.accounts = await loadAccounts();
+  state.number = await loadNumber();
   if (isExtension) {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     state.site = siteFromTab(tab);
   } else {
-    // Design preview: a connectable site that isn't yet connected. A URL hash
-    // forces a specific screen for design review; ignored in the real popup.
+    // Design preview: a connectable site that isn't yet connected, with a number
+    // already assigned (as if a session was connected before). A URL hash forces
+    // a specific screen for design review; ignored in the real popup.
     state.site = { domain: "verizon.com", name: "Verizon", letter: "V", color: "#c62a1f", favIconUrl: "" };
+    state.number = { display: "(617) 555-0142", digits: "+16175550142" };
     const h = location.hash.slice(1);
     if (h === "nosite") state.site = null;
-    else if (h === "empty") state.accounts = [];
+    else if (h === "empty") { state.accounts = []; state.number = null; }
     else if (h === "added") state.accounts = [{ ...state.site, since: Date.now() }, ...state.accounts];
     else if (h === "error") state.screen = "error";
     else if (h === "manage") state.screen = "manage";

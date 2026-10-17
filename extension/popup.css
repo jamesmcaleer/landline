@@ -156,7 +156,7 @@ body {
 .foot { display: flex; align-items: center; gap: 10px; padding: 2px 20px 16px 22px; }
 .foot-label { font-size: 14px; color: var(--ink-soft); }
 .foot-number { flex: 1; font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.copy-btn { width: 40px; height: 40px; border-radius: 20px; }
+.foot-icon { width: 40px; height: 40px; border-radius: 20px; flex: none; }
 
 /* Screen swap animation */
 .swap { transition: opacity 260ms cubic-bezier(0.23, 1, 0.32, 1), transform 260ms cubic-bezier(0.23, 1, 0.32, 1), filter 260ms cubic-bezier(0.23, 1, 0.32, 1); }
