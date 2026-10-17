@@ -219,7 +219,6 @@
 
       <div class="actions swap" id="p-main" hidden>
         <p class="note-text alert" id="failMsg" role="alert" hidden>Face ID didn’t go through. Nothing happened.</p>
-        <p class="note-text" id="firstMsg" hidden>First time? Your phone will save a passkey, then ask for Face ID.</p>
         <button class="btn btn-primary" id="approve" type="button">
           <svg id="approveIcon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2"/><path d="M16 4h2a2 2 0 0 1 2 2v2"/><path d="M20 16v2a2 2 0 0 1-2 2h-2"/><path d="M8 20H6a2 2 0 0 1-2-2v-2"/><path d="M9 9.5v1.5"/><path d="M15 9.5v1.5"/><path d="M12 9.5v3.5h-1"/><path d="M9 15.5c1.6 1.3 4.4 1.3 6 0"/></svg>
           <svg class="spin" id="approveSpin" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true" hidden><path d="M12 3a9 9 0 1 0 9 9"/></svg>
@@ -361,7 +360,6 @@
 
   function renderHints() {
     $("failMsg").hidden = !(failed && !busy);
-    $("firstMsg").hidden = !(state && !state.hasPasskey && !failed && !busy);
   }
 
   async function post(path, body) {
