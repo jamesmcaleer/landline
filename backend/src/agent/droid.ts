@@ -1,6 +1,6 @@
 // One long-lived Droid session per connection, driving that connection's browser.
 
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
   AutonomyLevel,
@@ -16,6 +16,13 @@ import type { AgentState, ApprovalKind, ApprovalResult, ApiError } from "@landli
 import { sendCallback } from "../callback.js";
 import { emit } from "../store.js";
 import { startNetworkLog } from "./network-log.js";
+
+/** The pinned Droid CLI in backend/bin (fetched by scripts/fetch-droid.sh), unless DROID_EXEC_PATH overrides it. */
+function droidExecPath(): string {
+  if (process.env.DROID_EXEC_PATH) return process.env.DROID_EXEC_PATH;
+  const bundled = fileURLToPath(new URL("../../bin/droid", import.meta.url));
+  return existsSync(bundled) ? bundled : "droid";
+}
 
 export interface ConnectionAgent {
   send(query: string): Promise<void>;
@@ -140,7 +147,7 @@ export async function createConnectionAgent(opts: { connectionId: string; cdpUrl
   const session: DroidSession = await createSession({
     cwd: workDir,
     // SDK 0.9.1 needs a Droid CLI with a matching protocol (0.212.1); see backend/README.md.
-    ...(process.env.DROID_EXEC_PATH ? { execPath: process.env.DROID_EXEC_PATH } : {}),
+    execPath: droidExecPath(),
     // Off: ask before every action, so every tool call reaches permissionHandler.
     autonomyLevel: AutonomyLevel.Off,
     mcpServers: [

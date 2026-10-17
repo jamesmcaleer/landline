@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "postinstall": "sh scripts/fetch-droid.sh",
+    "fetch-droid": "sh scripts/fetch-droid.sh",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "start": "node dist/index.js",

@@ -10,3 +10,4 @@ CLAUDE.md
 !.env.example
 backend/data.json
 backend/work
+backend/bin

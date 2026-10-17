@@ -7,7 +7,6 @@ Keeps one Chromium per connected site, loads captured sessions into it, runs one
 ```sh
 npm install                      # from the repo root
 npx playwright install chromium  # once
-curl -fsSL https://app.factory.ai/cli | sh   # once: installs the `droid` CLI (the Droid SDK spawns it from PATH)
 cp backend/.env.example backend/.env
 npm run build -w shared
 npm run build -w backend
@@ -61,7 +60,7 @@ Dashboard events stream over `ws://localhost:3000/ws/dashboard`.
 | `BROWSER_PROVIDER` | `local` or `chalk` |
 | `CALLBACK_URL` | Where the backend POSTs callbacks (below). Optional |
 | `FACTORY_API_KEY` | Factory key. The Droid SDK reads it from the environment |
-| `DROID_EXEC_PATH` | Path to the `droid` binary. Default: `droid` on PATH |
+| `DROID_EXEC_PATH` | Overrides the `droid` binary. Default: `backend/bin/droid`, then `droid` on PATH |
 
 ## Agent per connection
 
@@ -97,15 +96,9 @@ Errors while sending a callback are logged and ignored.
 
 ## Droid CLI version
 
-`@factory/droid-sdk@0.9.1` speaks Factory protocol 1.201.1. SDK MCP tools (our `landline` server) need a `droid` CLI with the same protocol, otherwise `createSession` throws `MCP OAuth opt-out requires a confirmed matching Droid protocol version`. The current CLI install script gives 0.244.0 (protocol 1.269.0), which fails. CLI 0.212.1 (protocol 1.201.0 reported) works. Install it next to the current one and point the backend at it:
+`@factory/droid-sdk@0.9.1` speaks Factory protocol 1.201.1. SDK MCP tools (our `landline` server) need a `droid` CLI with the same protocol, otherwise `createSession` throws `MCP OAuth opt-out requires a confirmed matching Droid protocol version`. The current CLI install script gives 0.244.0, which fails. CLI 0.212.1 works.
 
-```sh
-curl -fsSL https://downloads.factory.ai/factory-cli/releases/0.212.1/darwin/arm64/droid -o ~/.local/bin/droid-0.212.1
-chmod +x ~/.local/bin/droid-0.212.1
-DROID_EXEC_PATH=$HOME/.local/bin/droid-0.212.1 npm start -w backend
-```
-
-(Replace `darwin/arm64` for other platforms.) Remove this section when a newer SDK is released.
+`npm install` runs `scripts/fetch-droid.sh`, which downloads 0.212.1 for your platform into `backend/bin/droid` (gitignored, 267 MB). The backend uses that binary automatically. `DROID_EXEC_PATH` in `.env` overrides it. Rerun with `npm run fetch-droid -w backend`. Remove this pin when a newer SDK is released.
 
 ## Live test results (saucedemo, CLI 0.212.1, SDK 0.9.1)
 
