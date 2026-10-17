@@ -1,0 +1,13 @@
+{
+  "name": "landline-replay",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Local stand-in for the cloud browser: replays a captured session and screenshots it.",
+  "scripts": {
+    "replay": "node replay.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.49.1"
+  }
+}
