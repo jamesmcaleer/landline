@@ -115,6 +115,7 @@ const ic = {
   copy: `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M15 9V6.5A2.5 2.5 0 0 0 12.5 4h-6A2.5 2.5 0 0 0 4 6.5v6A2.5 2.5 0 0 0 6.5 15H9"/></svg>`,
   copied: `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#1f8a42" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`,
   qr: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><path d="M14 14h2v2M20 14v.01M14 20h.01M18 18h2v2M18 20v.01"/></svg>`,
+  offline: `<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5a9 9 0 0 1 14 0"/><path d="M8.5 15.5a4.5 4.5 0 0 1 7 0"/><path d="M12 19h.01"/><path d="M4 3l16 16"/></svg>`,
 };
 
 function tileHtml(obj, cls = "tile") {
@@ -127,6 +128,7 @@ function tileHtml(obj, cls = "tile") {
 const state = {
   screen: "home", // home | scan | manage | error
   adding: false,
+  offline: false, // true when the backend can't be reached
   site: null,
   accounts: [],
   config: null, // { phone, smsLink } from the backend
@@ -141,12 +143,26 @@ function isConnected(domain) {
 }
 
 function render() {
-  if (state.screen === "scan") bodyEl.innerHTML = scanScreen();
+  if (state.offline) bodyEl.innerHTML = offlineScreen();
+  else if (state.screen === "scan") bodyEl.innerHTML = scanScreen();
   else if (state.screen === "manage") bodyEl.innerHTML = manageScreen();
   else bodyEl.innerHTML = homeScreen();
 
   renderFooter();
   bind();
+}
+
+// Shown when the backend can't be reached, so a server-down state is obvious
+// rather than looking like a site or network problem.
+function offlineScreen() {
+  return `<div class="card swap"><div class="center-col swap" role="alert">
+    <div class="spacer"></div>
+    <span class="tile tile-ghost">${ic.offline}</span>
+    <span class="title sm">Can’t reach Landline</span>
+    <span class="sub">Landline isn’t responding. Make sure it’s running, then try again.</span>
+    <div class="spacer"></div>
+    <button class="x-btn g-blue btn-primary" data-act="retry">Try again</button>
+  </div></div>`;
 }
 
 // The footer shows the Landline number once config has loaded from the server.
@@ -317,6 +333,7 @@ function bind() {
     const act = el.dataset.act;
     el.addEventListener("click", () => {
       if (act === "add") startAdd();
+      else if (act === "retry") init();
       else if (act === "manage") { state.screen = "manage"; render(); }
       else if (act === "back") { state.screen = "home"; state.confirming = null; render(); }
       else if (act === "done") { state.screen = "home"; render(); }
@@ -337,8 +354,16 @@ async function copyNumber(btn) {
 }
 
 async function init() {
+  state.offline = false;
   if (isExtension) {
-    try { state.config = await getConfig(); } catch {}
+    // config is the reachability probe: if it fails, treat the backend as down.
+    try {
+      state.config = await getConfig();
+    } catch {
+      state.offline = true;
+      render();
+      return;
+    }
     try { state.accounts = (await listConnections()).map(toAccount); } catch {}
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     state.site = siteFromTab(tab);
@@ -354,6 +379,7 @@ async function init() {
     else if (h === "added") state.accounts = [siteAsAccount(state.site), ...state.accounts];
     else if (h === "error") state.screen = "error";
     else if (h === "manage") state.screen = "manage";
+    else if (h === "offline") { state.offline = true; state.config = null; }
   }
   render();
 }
