@@ -7,3 +7,5 @@ dist/
 .dev/
 .claude/
 CLAUDE.md
+!.env.example
+backend/data.json

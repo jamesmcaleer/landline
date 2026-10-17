@@ -4,7 +4,7 @@ The extension captures a site's logged-in session and serializes it as a single
 JSON object. This is the contract between the extension and whatever replays the
 session (the local replay script today, the session service later).
 
-The source of truth for the shape is `shared/session.ts` (the `SessionExport`
+The source of truth for the shape is `shared/src/session.ts` (the `SessionExport`
 type). The session service imports it. This document explains the same shape in
 prose. `formatVersion` lets the shape change later without breaking older
 captures.
