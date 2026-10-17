@@ -22,11 +22,12 @@ async function rehydrateConnections(): Promise<void> {
       if (connection.sandboxName && connection.sandboxToken && provider.resume) {
         // The sandbox outlived us: wait for its relay to redial, then reload the session (its profile may be wiped).
         ({ cdpUrl: connection.cdpUrl } = await provider.resume(connection.id, connection.sandboxName, connection.sandboxToken));
+      } else if (connection.sandboxName || provider.resume) {
+        // Made under a different provider. Not worth migrating: connections are short-lived.
+        throw new Error("created under a different browser provider");
       } else {
         const started = await provider.start(connection.id);
         connection.cdpUrl = started.cdpUrl;
-        connection.sandboxName = started.sandboxName;
-        connection.sandboxToken = started.sandboxToken;
       }
       await reloadSession(connection.id); // shares the run the relay reconnect already started, if any
       startScreencast(connection.id, connection.cdpUrl);

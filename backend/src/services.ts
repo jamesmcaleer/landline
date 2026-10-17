@@ -91,7 +91,7 @@ export function reloadSession(connectionId: string): Promise<void> {
 /** Called when the sandbox relay reconnects. Reloads the session only when no task is running. */
 export function onRelayReconnected(connectionId: string): void {
   const connection = connections.get(connectionId);
-  if (!connection?.session) return;
+  if (!connection?.session || !connection.sandboxName) return; // no session yet, or start() still in progress
   const state = agents.get(connectionId)?.state() ?? "idle";
   if (state !== "idle") {
     console.log(`Relay for ${connectionId} reconnected while ${state}; not reloading the session`);
