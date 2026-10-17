@@ -44,18 +44,6 @@ function siteFromTab(tab) {
   };
 }
 
-function sinceText(ts) {
-  const mins = (Date.now() - ts) / 60000;
-  if (mins < 1) return "Added just now";
-  if (mins < 60) return `Connected ${Math.round(mins)} min ago`;
-  const hrs = mins / 60;
-  if (hrs < 24) return "Connected today";
-  const days = Math.round(hrs / 24);
-  if (days < 7) return `Connected ${days} day${days > 1 ? "s" : ""} ago`;
-  const wks = Math.round(days / 7);
-  return `Connected ${wks} week${wks > 1 ? "s" : ""} ago`;
-}
-
 // --- storage --------------------------------------------------------------
 
 async function loadAccounts() {
@@ -81,11 +69,10 @@ async function saveNumber(number) {
 }
 
 function mockAccounts() {
-  const base = Date.now();
   return [
-    { domain: "coned.com", name: "Con Edison", letter: "C", color: "hsl(214 55% 42%)", favIconUrl: "", since: base - 3 * 864e5 },
-    { domain: "cvs.com", name: "CVS Pharmacy", letter: "C", color: "hsl(318 55% 42%)", favIconUrl: "", since: base - 8 * 864e5 },
-    { domain: "spectrum.net", name: "Spectrum", letter: "S", color: "hsl(168 55% 38%)", favIconUrl: "", since: base - 60 * 864e5 },
+    { domain: "coned.com", name: "Con Edison", letter: "C", color: "hsl(214 55% 42%)", favIconUrl: "" },
+    { domain: "cvs.com", name: "CVS Pharmacy", letter: "C", color: "hsl(318 55% 42%)", favIconUrl: "" },
+    { domain: "spectrum.net", name: "Spectrum", letter: "S", color: "hsl(168 55% 38%)", favIconUrl: "" },
   ];
 }
 
@@ -287,11 +274,9 @@ function manageScreen() {
 
 function rowHtml(a) {
   const confirming = state.confirming === a.domain;
-  const since = sinceText(a.since);
-  const fresh = Date.now() - a.since < 60000;
   const main = `<div class="row-main">
     ${tileHtml(a, "row-tile")}
-    <div class="row-meta"><span class="row-name">${a.name}</span><span class="row-since${fresh ? " fresh" : ""}">${since}</span></div>
+    <div class="row-meta"><span class="row-name">${a.name}</span><span class="row-since">Connected</span></div>
     ${confirming ? "" : `<button class="x-btn l-red revoke-btn" data-act="ask" data-domain="${a.domain}">Revoke</button>`}
   </div>`;
   const confirm = confirming
@@ -317,7 +302,7 @@ async function startAdd() {
     } else {
       await new Promise((r) => setTimeout(r, 1400)); // mock capture delay
     }
-    state.accounts = [{ ...site, since: Date.now() }, ...state.accounts.filter((a) => a.domain !== site.domain)];
+    state.accounts = [{ ...site }, ...state.accounts.filter((a) => a.domain !== site.domain)];
     await saveAccounts(state.accounts);
     if (!state.number) {
       state.number = generateNumber();
@@ -380,7 +365,7 @@ async function init() {
     const h = location.hash.slice(1);
     if (h === "nosite") state.site = null;
     else if (h === "empty") { state.accounts = []; state.number = null; }
-    else if (h === "added") state.accounts = [{ ...state.site, since: Date.now() }, ...state.accounts];
+    else if (h === "added") state.accounts = [{ ...state.site }, ...state.accounts];
     else if (h === "error") state.screen = "error";
     else if (h === "manage") state.screen = "manage";
   }
