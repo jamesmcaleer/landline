@@ -4,11 +4,10 @@ The extension captures a site's logged-in session and serializes it as a single
 JSON object. This is the contract between the extension and whatever replays the
 session (the local replay script today, the session service later).
 
-`formatVersion` lets the shape change later without breaking older captures.
-
-`session.schema.json` is the machine-readable version of this document. The
-extension produces data that validates against it, and the session service
-should validate incoming captures against it.
+The source of truth for the shape is `shared/session.ts` (the `SessionExport`
+type). The session service imports it. This document explains the same shape in
+prose. `formatVersion` lets the shape change later without breaking older
+captures.
 
 ```jsonc
 {
@@ -18,7 +17,8 @@ should validate incoming captures against it.
   "site": {
     "url": "https://www.saucedemo.com/inventory.html", // tab URL at capture time
     "title": "Swag Labs",                              // tab title
-    "domain": "www.saucedemo.com"                      // hostname of the URL
+    "domain": "www.saucedemo.com",                     // hostname of the URL
+    "favIconUrl": "https://www.saucedemo.com/favicon.ico" // tab favicon; may be a data: URL or ""
   },
 
   // Makes the replay browser resemble the user's machine. Reduces how much the
@@ -41,57 +41,28 @@ should validate incoming captures against it.
       "path": "/",
       "secure": true,
       "httpOnly": false,
-      "sameSite": "Lax",              // "Strict" | "Lax" | "None" | "no_restriction" normalized to these
+      "sameSite": "Lax",              // "Strict" | "Lax" | "None"
       "expirationDate": 1773000000,   // unix seconds; omitted for session cookies
       "hostOnly": false,
       "session": false
     }
   ],
 
-  // Per-origin state. Each browsing origin has its own web storage and
-  // IndexedDB, so they are captured separately per origin.
+  // Per-origin web storage. Each browsing origin has its own localStorage and
+  // sessionStorage, so they are captured separately per origin.
   "origins": [
     {
       "origin": "https://www.saucedemo.com",
       "localStorage": { "cart-contents": "[1,2]" },
-      "sessionStorage": {},
-
-      // Full IndexedDB dump. This is where Firebase-based and many SPA auth
-      // tokens live. One entry per database, each with its object stores and
-      // their records.
-      "indexedDB": [
-        {
-          "name": "firebaseLocalStorageDb",
-          "version": 1,
-          "stores": [
-            {
-              "name": "firebaseLocalStorage",
-              "keyPath": "fbase_key",   // string | string[] | null (out-of-line)
-              "autoIncrement": false,
-              "records": [
-                {
-                  "key": "fbase:user:...",  // used on replay only when keyPath is null
-                  "value": { "fbase_key": "...", "value": { "...auth token..." } }
-                }
-              ]
-            }
-          ]
-        }
-      ]
+      "sessionStorage": {}
     }
   ]
 }
 ```
 
-## IndexedDB value limits
+## Not captured
 
-Records are serialized to JSON. Strings, numbers, booleans, plain objects and
-arrays survive. Dates become strings. Binary values (Blob, ArrayBuffer) do not
-survive and are dropped. Auth tokens are almost always strings or plain objects,
-so this covers the cases that matter.
-
-## Not captured (yet)
-
-- In-memory JS tokens that never touch cookies, web storage, or IndexedDB.
+- IndexedDB (some apps keep auth tokens here; left out for now).
+- In-memory JS tokens that never touch cookies or web storage.
 - Cache Storage / service-worker caches (response caching, not auth).
 - Passkeys, saved passwords, client certificates (not readable by extensions).
