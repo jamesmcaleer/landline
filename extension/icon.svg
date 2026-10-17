@@ -1,0 +1,60 @@
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4c9bff"/>
+      <stop offset="1" stop-color="#1560cc"/>
+    </linearGradient>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fffdf8"/>
+      <stop offset="1" stop-color="#ece1cf"/>
+    </linearGradient>
+    <linearGradient id="hand" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fffefb"/>
+      <stop offset="1" stop-color="#efe4d2"/>
+    </linearGradient>
+    <radialGradient id="dial" cx="0.5" cy="0.42" r="0.6">
+      <stop offset="0" stop-color="#fbf5ea"/>
+      <stop offset="1" stop-color="#e9dcc6"/>
+    </radialGradient>
+  </defs>
+
+  <!-- app-icon background -->
+  <rect x="2" y="2" width="124" height="124" rx="30" fill="url(#bg)"/>
+  <!-- glossy top sheen -->
+  <rect x="2" y="2" width="124" height="60" rx="30" fill="#ffffff" opacity="0.12"/>
+
+  <!-- soft contact shadow under the phone -->
+  <ellipse cx="64" cy="106" rx="46" ry="8" fill="#0a2550" opacity="0.28"/>
+
+  <!-- body: a rounded trapezoid, wider at the base -->
+  <path d="M42,56 L86,56 Q92,56 94,62 L104,96 Q106,104 97,104 L31,104 Q22,104 24,96 L34,62 Q36,56 42,56 Z"
+        fill="url(#body)" stroke="#cdbfa4" stroke-width="1.5"/>
+  <!-- top highlight on the body -->
+  <path d="M43,59 L85,59 Q89,59 90,63 L91,66 L37,66 L38,63 Q39,59 43,59 Z" fill="#ffffff" opacity="0.5"/>
+
+  <!-- cradle posts holding the handset -->
+  <rect x="45" y="48" width="8" height="12" rx="3" fill="#efe4d2" stroke="#cdbfa4" stroke-width="1.2"/>
+  <rect x="75" y="48" width="8" height="12" rx="3" fill="#efe4d2" stroke="#cdbfa4" stroke-width="1.2"/>
+
+  <!-- handset: two rounded ends with a narrower grip -->
+  <path d="M20,42 Q20,30 33,30 Q45,30 49,37 L79,37 Q83,30 95,30 Q108,30 108,42 Q108,54 95,54 Q83,54 79,47 L49,47 Q45,54 33,54 Q20,54 20,42 Z"
+        fill="url(#hand)" stroke="#cdbfa4" stroke-width="1.5"/>
+  <!-- handset highlight -->
+  <path d="M24,37 Q28,33 34,33 Q40,33 43,36" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" opacity="0.6"/>
+
+  <!-- rotary dial -->
+  <circle cx="64" cy="82" r="18.5" fill="url(#dial)" stroke="#cdbfa4" stroke-width="1.5"/>
+  <g fill="#2f2b24">
+    <circle cx="64" cy="67.5" r="2.4"/>
+    <circle cx="74.2" cy="71.7" r="2.4"/>
+    <circle cx="78.5" cy="82" r="2.4"/>
+    <circle cx="74.2" cy="92.3" r="2.4"/>
+    <circle cx="64" cy="96.5" r="2.4"/>
+    <circle cx="53.8" cy="92.3" r="2.4"/>
+    <circle cx="49.5" cy="82" r="2.4"/>
+    <circle cx="53.8" cy="71.7" r="2.4"/>
+  </g>
+  <!-- dial hub -->
+  <circle cx="64" cy="82" r="6" fill="#f7f0e2" stroke="#cdbfa4" stroke-width="1.2"/>
+  <circle cx="64" cy="82" r="1.8" fill="#8a7d64"/>
+</svg>

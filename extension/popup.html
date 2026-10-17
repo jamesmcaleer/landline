@@ -1,18 +1,30 @@
 <!doctype html>
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
-    <main>
-      <div id="site">
-        <div id="site-domain">Loading…</div>
-        <div id="site-title"></div>
-      </div>
-      <button id="capture" disabled>Capture session</button>
-      <div id="status"></div>
-    </main>
+    <!-- Soft color blobs behind the glass, per design C. -->
+    <div class="blobs" aria-hidden="true">
+      <span class="blob b1"></span>
+      <span class="blob b2"></span>
+      <span class="blob b3"></span>
+    </div>
+
+    <div class="shell">
+      <header class="bar">
+        <span class="brand">
+          <img class="brand-mark" src="icon.svg" alt="" width="34" height="34" />
+          <span class="brand-name">Landline</span>
+        </span>
+      </header>
+
+      <main class="body" id="body"><!-- screens render here --></main>
+
+      <footer class="foot" id="foot" hidden><!-- number + actions render here once a number exists --></footer>
+    </div>
+
     <script type="module" src="popup.js"></script>
   </body>
 </html>
