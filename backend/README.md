@@ -61,6 +61,7 @@ Dashboard events stream over `ws://localhost:3000/ws/dashboard`.
 | `BROWSER_PROVIDER` | `local` or `chalk` |
 | `CALLBACK_URL` | Where the backend POSTs callbacks (below). Optional |
 | `FACTORY_API_KEY` | Factory key. The Droid SDK reads it from the environment |
+| `DROID_EXEC_PATH` | Path to the `droid` binary. Default: `droid` on PATH |
 
 ## Agent per connection
 
@@ -93,3 +94,22 @@ When `CALLBACK_URL` is set the backend POSTs JSON `{ connectionId, type, text, u
 | `progress` | The agent called `report_progress` | Short status |
 
 Errors while sending a callback are logged and ignored.
+
+## Droid CLI version
+
+`@factory/droid-sdk@0.9.1` speaks Factory protocol 1.201.1. SDK MCP tools (our `landline` server) need a `droid` CLI with the same protocol, otherwise `createSession` throws `MCP OAuth opt-out requires a confirmed matching Droid protocol version`. The current CLI install script gives 0.244.0 (protocol 1.269.0), which fails. CLI 0.212.1 (protocol 1.201.0 reported) works. Install it next to the current one and point the backend at it:
+
+```sh
+curl -fsSL https://downloads.factory.ai/factory-cli/releases/0.212.1/darwin/arm64/droid -o ~/.local/bin/droid-0.212.1
+chmod +x ~/.local/bin/droid-0.212.1
+DROID_EXEC_PATH=$HOME/.local/bin/droid-0.212.1 npm start -w backend
+```
+
+(Replace `darwin/arm64` for other platforms.) Remove this section when a newer SDK is released.
+
+## Live test results (saucedemo, CLI 0.212.1, SDK 0.9.1)
+
+- Permission handler: with `AutonomyLevel.Off` it fired for every Playwright MCP tool call (`playwright___browser_snapshot` impact `low`, `playwright___browser_click` impact `high`) and for `landline___request_approval`. It did not fire for native read-only tools (`Read`, `Glob`) or `ToolSearch`. Tool names are `<server>___<tool>`.
+- "What items are in my cart and what is the total?": result callback after 51 s from the POST (47 s turn). Droid globbed and read `network.jsonl`, found nothing useful (saucedemo is a client-side app, and the log starts when the agent is created), then used `browser_snapshot` and `browser_click` on the cart. Answer was correct: 3 items, $41.97.
+- "Add the backpack to my cart": Droid called `request_approval` (kind `order`) before touching the page. The approval callback arrived with the link. After a `declined` / "testing" decision Droid replied "I didn't add the backpack because approval was declined."
+- A second `POST /actions` during the approval wait returned `409 {"error":"action in progress"}`, state was `waiting_approval`.

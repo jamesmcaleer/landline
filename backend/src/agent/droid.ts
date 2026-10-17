@@ -139,6 +139,8 @@ export async function createConnectionAgent(opts: { connectionId: string; cdpUrl
 
   const session: DroidSession = await createSession({
     cwd: workDir,
+    // SDK 0.9.1 needs a Droid CLI with a matching protocol (0.212.1); see backend/README.md.
+    ...(process.env.DROID_EXEC_PATH ? { execPath: process.env.DROID_EXEC_PATH } : {}),
     // Off: ask before every action, so every tool call reaches permissionHandler.
     autonomyLevel: AutonomyLevel.Off,
     mcpServers: [
