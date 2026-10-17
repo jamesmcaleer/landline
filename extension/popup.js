@@ -2,6 +2,7 @@ import { captureSession } from "./capture.js";
 
 // The backend base URL is hardcoded, matching how the backend is configured.
 const API_BASE = "http://localhost:3000";
+const CONFIG_KEY = "landline.config"; // cached { phone, smsLink } for instant display
 
 // Real extension when the chrome APIs exist; otherwise a plain web page for
 // design preview, which uses mock data and never calls the server.
@@ -356,13 +357,22 @@ async function copyNumber(btn) {
 async function init() {
   state.offline = false;
   if (isExtension) {
-    // config is the reachability probe: if it fails, treat the backend as down.
+    // Show the number instantly from the last known config, then refresh.
+    try {
+      const cached = (await chrome.storage.local.get(CONFIG_KEY))[CONFIG_KEY];
+      if (cached) state.config = cached;
+    } catch {}
+    // config is the reachability probe: if it fails and we have nothing cached,
+    // treat the backend as down.
     try {
       state.config = await getConfig();
+      chrome.storage.local.set({ [CONFIG_KEY]: state.config }).catch(() => {});
     } catch {
-      state.offline = true;
-      render();
-      return;
+      if (!state.config) {
+        state.offline = true;
+        render();
+        return;
+      }
     }
     try { state.accounts = (await listConnections()).map(toAccount); } catch {}
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
