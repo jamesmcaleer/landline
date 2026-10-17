@@ -6,10 +6,13 @@ export type ApprovalStatus = "pending" | "approved" | "declined";
 
 export interface Site { domain: string; title: string; favIconUrl: string; url: string }
 
+export type AgentState = "idle" | "working" | "waiting_approval" | "waiting_user";
+
 export interface Connection {
   id: string;                   // "con_" + 12 random chars
   site: Site;
   loggedIn: boolean | null;     // null while the browser starts
+  state: AgentState;
   createdAt: string;            // ISO 8601
 }
 
@@ -35,3 +38,10 @@ export interface ConnectionsResult { connections: Connection[] }
 export interface CreateApprovalArgs { connectionId: string; summary: string; kind: ApprovalKind }
 export interface ApprovalResult { approval: Approval }
 export interface EventsResult { events: EventEnvelope[] }
+
+export interface SendActionArgs { connectionId: string; query: string }
+export interface SendActionResult { accepted: true }
+export interface StopActionArgs { connectionId: string }
+
+export type CallbackType = "result" | "error" | "question" | "approval" | "progress";
+export interface Callback { connectionId: string; type: CallbackType; text: string; url?: string }

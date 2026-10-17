@@ -7,100 +7,12 @@
 // the page does, and it works the same through any provider that gives us a
 // ws:// URL (including a relay).
 
-import WebSocket from "ws";
+import { CdpClient } from "./cdp.js";
 import type { Cookie, SessionExport } from "@landline/shared";
 
 const LOGIN_URL_HINTS = ["login", "signin", "sign-in", "auth"];
-const COMMAND_TIMEOUT_MS = 30_000;
 const LOAD_TIMEOUT_MS = 20_000;
 const SETTLE_MS = 1_000;
-
-interface CdpMessage {
-  id?: number;
-  method?: string;
-  params?: Record<string, unknown>;
-  sessionId?: string;
-  result?: Record<string, unknown>;
-  error?: { message: string };
-}
-
-/** A minimal CDP client: send commands, wait for events. */
-class CdpClient {
-  private nextId = 1;
-  private pending = new Map<number, { resolve: (r: Record<string, unknown>) => void; reject: (e: Error) => void }>();
-  private eventWaiters: Array<{ method: string; sessionId?: string; resolve: () => void }> = [];
-
-  private constructor(private ws: WebSocket) {
-    ws.on("message", (data) => this.onMessage(JSON.parse(data.toString()) as CdpMessage));
-    ws.on("close", () => this.failAll(new Error("CDP connection closed")));
-  }
-
-  static connect(url: string): Promise<CdpClient> {
-    return new Promise((resolve, reject) => {
-      const ws = new WebSocket(url, { perMessageDeflate: false });
-      ws.once("open", () => resolve(new CdpClient(ws)));
-      ws.once("error", reject);
-    });
-  }
-
-  send(method: string, params: Record<string, unknown> = {}, sessionId?: string): Promise<Record<string, unknown>> {
-    const id = this.nextId++;
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.pending.delete(id);
-        reject(new Error(`CDP ${method} timed out`));
-      }, COMMAND_TIMEOUT_MS);
-      this.pending.set(id, {
-        resolve: (r) => {
-          clearTimeout(timer);
-          resolve(r);
-        },
-        reject: (e) => {
-          clearTimeout(timer);
-          reject(e);
-        },
-      });
-      this.ws.send(JSON.stringify({ id, method, params, sessionId }));
-    });
-  }
-
-  /** Resolves true when the event arrives, false after `timeoutMs`. */
-  waitForEvent(method: string, sessionId: string, timeoutMs: number): Promise<boolean> {
-    return new Promise((resolve) => {
-      const waiter = { method, sessionId, resolve: () => finish(true) };
-      const timer = setTimeout(() => finish(false), timeoutMs);
-      const finish = (arrived: boolean) => {
-        clearTimeout(timer);
-        this.eventWaiters = this.eventWaiters.filter((w) => w !== waiter);
-        resolve(arrived);
-      };
-      this.eventWaiters.push(waiter);
-    });
-  }
-
-  close(): void {
-    this.ws.close();
-  }
-
-  private onMessage(message: CdpMessage): void {
-    if (message.id !== undefined) {
-      const entry = this.pending.get(message.id);
-      if (!entry) return;
-      this.pending.delete(message.id);
-      if (message.error) entry.reject(new Error(message.error.message));
-      else entry.resolve(message.result ?? {});
-      return;
-    }
-    for (const waiter of [...this.eventWaiters]) {
-      if (waiter.method === message.method && waiter.sessionId === message.sessionId) waiter.resolve();
-    }
-  }
-
-  private failAll(err: Error): void {
-    for (const entry of this.pending.values()) entry.reject(err);
-    this.pending.clear();
-  }
-}
 
 function toCdpCookie(c: Cookie) {
   return {
@@ -148,12 +60,7 @@ async function tryCommand(label: string, command: Promise<unknown>): Promise<voi
 export async function loadSession(cdpUrl: string, session: SessionExport): Promise<boolean> {
   const cdp = await CdpClient.connect(cdpUrl);
   try {
-    const { targetInfos } = (await cdp.send("Target.getTargets")) as { targetInfos: Array<{ type: string; targetId: string }> };
-    let targetId = targetInfos.find((t) => t.type === "page")?.targetId;
-    if (!targetId) {
-      targetId = ((await cdp.send("Target.createTarget", { url: "about:blank" })) as { targetId: string }).targetId;
-    }
-    const { sessionId } = (await cdp.send("Target.attachToTarget", { targetId, flatten: true })) as { sessionId: string };
+    const sessionId = await cdp.attachToPage();
     const page = (method: string, params: Record<string, unknown> = {}) => cdp.send(method, params, sessionId);
 
     await page("Network.enable");

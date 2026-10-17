@@ -17,6 +17,7 @@ import type {
   CreateApprovalArgs,
   Site,
 } from "@landline/shared";
+import { sendCallback } from "../callback.js";
 import { removeConnection, resolveApproval, waitForResolution } from "../services.js";
 import { approvals, connections, emit, newId, passkey, save, setPasskey, type StoredApproval } from "../store.js";
 
@@ -119,20 +120,10 @@ approvalsRouter.post("/approvals", async (req, res) => {
 
   const url = `${publicUrl()}/a/${token}`;
   console.log(`Approval ${approval.id} requested: ${approval.summary}\n  ${url}`);
-  notify(`Approve: ${approval.summary}`, url);
+  void sendCallback({ connectionId: approval.connectionId, type: "approval", text: `Approve: ${approval.summary}`, url });
 
   res.status(201).json({ approval: toPublicApproval(approval) } satisfies ApprovalResult);
 });
-
-function notify(text: string, url: string): void {
-  const notifyUrl = process.env.NOTIFY_URL;
-  if (!notifyUrl) return;
-  fetch(notifyUrl, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ text, url }),
-  }).catch((err) => console.error("Notify failed:", err));
-}
 
 approvalsRouter.get("/approvals/:id", (req, res) => {
   const approval = approvals.get(req.params.id);

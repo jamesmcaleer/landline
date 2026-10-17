@@ -10,12 +10,15 @@
     "dev": "node --watch dist/index.js"
   },
   "dependencies": {
+    "@factory/droid-sdk": "^0.9.1",
     "@landline/shared": "*",
+    "@playwright/mcp": "0.0.83",
     "@simplewebauthn/server": "^13.1.1",
     "dotenv": "^16.4.7",
     "express": "^5.1.0",
     "playwright": "^1.49.1",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
