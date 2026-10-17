@@ -171,7 +171,7 @@ approvalsRouter.get("/approvals/:id/wait", (req, res) => {
 // --- phone page ---
 
 approvalsRouter.get("/a/:token", (_req, res) => {
-  res.sendFile(APPROVE_PAGE);
+  res.sendFile(APPROVE_PAGE, { dotfiles: "allow" });
 });
 
 /** Finds the approval for a token, or answers 410 when it is unknown, expired or already answered. */
