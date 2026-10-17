@@ -399,6 +399,9 @@
     } catch (err) {
       if (finished) return;
       failed = true; // Face ID cancelled, 403 "Face ID check failed", or a network error
+      console.error("approval failed", err);
+      const detail = err && err.name ? `${err.name}: ${err.message || ""}` : String(err);
+      $("failMsg").textContent = `Face ID didn’t go through. Nothing happened. (${detail})`;
       setBusy(false, which);
       showPanel(homePanel());
     }

@@ -94,6 +94,10 @@ When `CALLBACK_URL` is set the backend POSTs JSON `{ connectionId, type, text, u
 
 Errors while sending a callback are logged and ignored.
 
+## Factory session sync
+
+The Droid CLI uploads every session transcript (tool calls, page snapshots, answers) to Factory, where it shows in the Factory web app under the account that owns `FACTORY_API_KEY`. There is no documented opt-out. Page content from connected sites therefore reaches Factory's cloud. Ask Factory about a local-only mode before using real accounts.
+
 ## Droid CLI version
 
 `@factory/droid-sdk@0.9.1` speaks Factory protocol 1.201.1. SDK MCP tools (our `landline` server) need a `droid` CLI with the same protocol, otherwise `createSession` throws `MCP OAuth opt-out requires a confirmed matching Droid protocol version`. The current CLI install script gives 0.244.0, which fails. CLI 0.212.1 works.

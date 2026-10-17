@@ -37,7 +37,7 @@ const WORK_ROOT = fileURLToPath(new URL("../../work/", import.meta.url));
 const TURN_TIMEOUT_MS = 10 * 60 * 1000;
 const APPROVAL_WAIT_MS = 6 * 60 * 1000;
 
-const AGENTS_MD = `You operate one website for one user through the Playwright MCP browser tools. The browser is already logged in; never log in or ask for a password. Read anything freely. Before any action that changes something on the site (a payment, a plan change, an order, a setting), call request_approval with a one-line plain-English summary and stop if the decision is not approved. network.jsonl in this directory records every XHR and fetch request with bodies; prefer grepping or writing a short script over it to extract data instead of reading pages. If you need information from the user, call ask_user and end your turn. Keep answers short and in plain English for a non-technical person.
+const AGENTS_MD = `You operate one website for one user through the Playwright MCP browser tools. The browser is already logged in; never log in or ask for a password. Read anything freely. Before any action that changes something on the site (a payment, a plan change, an order, a setting), call request_approval with a one-line plain-English summary that names what will change and the new value (for example "Change your first name from James to Jame"), and stop if the decision is not approved. network.jsonl in this directory records every XHR and fetch request with bodies; prefer grepping or writing a short script over it to extract data instead of reading pages. If you need information from the user, call ask_user and end your turn. Keep answers short and in plain English for a non-technical person.
 `;
 
 function selfUrl(): string {
