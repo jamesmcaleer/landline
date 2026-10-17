@@ -1,8 +1,10 @@
 import { captureSession } from "./capture.js";
 
-// The backend base URL is hardcoded, matching how the backend is configured.
-const API_BASE = "http://localhost:3000";
+// The backend base URL defaults to localhost but can be changed in Settings.
+const DEFAULT_API_BASE = "http://localhost:3000";
+const API_BASE_KEY = "landline.apiBase";
 const CONFIG_KEY = "landline.config"; // cached { phone, smsLink } for instant display
+let apiBase = DEFAULT_API_BASE;
 
 // Real extension when the chrome APIs exist; otherwise a plain web page for
 // design preview, which uses mock data and never calls the server.
@@ -11,7 +13,7 @@ const isExtension = typeof chrome !== "undefined" && !!chrome.tabs;
 // --- backend ---------------------------------------------------------------
 
 async function api(method, path, body) {
-  const res = await fetch(API_BASE + path, {
+  const res = await fetch(apiBase + path, {
     method,
     headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
@@ -138,19 +140,37 @@ const state = {
 
 const bodyEl = document.getElementById("body");
 const footEl = document.getElementById("foot");
+const settingsBtn = document.getElementById("settings-btn");
 
 function isConnected(domain) {
   return state.accounts.some((a) => a.domain === domain);
 }
 
 function render() {
-  if (state.offline) bodyEl.innerHTML = offlineScreen();
+  // The gear is hidden on screens that already have their own back button.
+  settingsBtn.hidden = ["scan", "manage", "settings"].includes(state.screen);
+
+  if (state.screen === "settings") bodyEl.innerHTML = settingsScreen();
+  else if (state.offline) bodyEl.innerHTML = offlineScreen();
   else if (state.screen === "scan") bodyEl.innerHTML = scanScreen();
   else if (state.screen === "manage") bodyEl.innerHTML = manageScreen();
   else bodyEl.innerHTML = homeScreen();
 
   renderFooter();
   bind();
+}
+
+function settingsScreen() {
+  return `<div class="card flush swap" style="gap:14px">
+    <div class="manage-head"><button class="x-btn icon-btn" data-act="back" aria-label="Back">${ic.back}</button><span class="title">Settings</span></div>
+    <div class="field">
+      <label class="field-label" for="api-input">Server URL</label>
+      <input class="field-input" id="api-input" type="url" spellcheck="false" autocomplete="off" value="${apiBase}" placeholder="${DEFAULT_API_BASE}" />
+      <span class="field-hint">Where the Landline backend is running. Leave blank to reset to the default.</span>
+    </div>
+    <div class="spacer"></div>
+    <button class="x-btn g-blue btn-primary" data-act="save">Save</button>
+  </div>`;
 }
 
 // Shown when the backend can't be reached, so a server-down state is obvious
@@ -334,6 +354,7 @@ function bind() {
     const act = el.dataset.act;
     el.addEventListener("click", () => {
       if (act === "add") startAdd();
+      else if (act === "save") saveApiBase();
       else if (act === "retry") init();
       else if (act === "manage") { state.screen = "manage"; render(); }
       else if (act === "back") { state.screen = "home"; state.confirming = null; render(); }
@@ -354,13 +375,28 @@ async function copyNumber(btn) {
   setTimeout(() => { btn.innerHTML = ic.copy; }, 1600);
 }
 
+// Saves the server URL, then re-probes against it.
+async function saveApiBase() {
+  const input = document.getElementById("api-input");
+  const v = (input ? input.value : "").trim().replace(/\/+$/, "");
+  apiBase = v || DEFAULT_API_BASE;
+  if (isExtension) {
+    try { await chrome.storage.local.set({ [API_BASE_KEY]: apiBase }); } catch {}
+  }
+  state.screen = "home";
+  await init();
+}
+
+settingsBtn.addEventListener("click", () => { state.screen = "settings"; render(); });
+
 async function init() {
   state.offline = false;
   if (isExtension) {
-    // Show the number instantly from the last known config, then refresh.
+    // Load the saved server URL and the last known config before any request.
     try {
-      const cached = (await chrome.storage.local.get(CONFIG_KEY))[CONFIG_KEY];
-      if (cached) state.config = cached;
+      const stored = await chrome.storage.local.get([API_BASE_KEY, CONFIG_KEY]);
+      if (stored[API_BASE_KEY]) apiBase = stored[API_BASE_KEY];
+      if (stored[CONFIG_KEY]) state.config = stored[CONFIG_KEY];
     } catch {}
     // config is the reachability probe: if it fails and we have nothing cached,
     // treat the backend as down.
@@ -390,6 +426,7 @@ async function init() {
     else if (h === "error") state.screen = "error";
     else if (h === "manage") state.screen = "manage";
     else if (h === "offline") { state.offline = true; state.config = null; }
+    else if (h === "settings") state.screen = "settings";
   }
   render();
 }
