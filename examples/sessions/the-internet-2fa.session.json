@@ -1,0 +1,76 @@
+{
+  "formatVersion": 1,
+  "capturedAt": "2026-10-17T00:46:18.010Z",
+  "site": {
+    "url": "https://the-internet.herokuapp.com/two_factor/secure",
+    "title": "The Internet",
+    "domain": "the-internet.herokuapp.com",
+    "favIconUrl": ""
+  },
+  "browser": {
+    "language": "en-US",
+    "platform": "MacIntel",
+    "screen": {
+      "height": 1117,
+      "width": 1728
+    },
+    "timezone": "America/New_York",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36"
+  },
+  "cookies": [
+    {
+      "name": "optimizelySegments",
+      "value": "%7B%7D",
+      "domain": ".the-internet.herokuapp.com",
+      "path": "/",
+      "secure": false,
+      "httpOnly": false,
+      "sameSite": "Lax",
+      "hostOnly": false,
+      "session": false,
+      "expirationDate": 1826756910.72366
+    },
+    {
+      "name": "optimizelyEndUserId",
+      "value": "oeu1792196910724r0.28187225155030093",
+      "domain": ".the-internet.herokuapp.com",
+      "path": "/",
+      "secure": false,
+      "httpOnly": false,
+      "sameSite": "Lax",
+      "hostOnly": false,
+      "session": false,
+      "expirationDate": 1826756910.724448
+    },
+    {
+      "name": "optimizelyBuckets",
+      "value": "%7B%7D",
+      "domain": ".the-internet.herokuapp.com",
+      "path": "/",
+      "secure": false,
+      "httpOnly": false,
+      "sameSite": "Lax",
+      "hostOnly": false,
+      "session": false,
+      "expirationDate": 1826756910.725005
+    },
+    {
+      "name": "rack.session",
+      "value": "AktIgttQpmy%2B34trmKK7K6ROi1e%2BzKwIPNpEkI8tPBGX6aXdPfq7nLy3C2Ft3THMrBpENQ%2FtZz2zeJUQ5WdMzVZ6O9LWtKre6adZurqphmvDa7rUiiHdrwNX3ujSAVImR0oChqBm5xTPaY7iQjGkC%2F6Y%2BQWybZVB%2FVnfi7tu20wZMj7PnaECto9scydoBaSALGZW5YFEcrEwl15JgencESz9QEQFpA1mDc3lBq0wW%2FNv0BAFMz2uakzR1X2C8Do3KCxPGtW9aDmB4o0QrB4OvamY2TseoZbwl3DMye%2FvH%2BdYORdndRqUbVkzphnOMEPLo1Dwb7QfjnYLGc%2F2kXMYuBpcC5XiY4SuyufmowBWBQL9jc9ov5YK1r26saCrXU84PY7F9fC3LZNvX5ZJjF99CWFouF3r10GXN%2BnFZeg%3D",
+      "domain": "the-internet.herokuapp.com",
+      "path": "/",
+      "secure": false,
+      "httpOnly": true,
+      "sameSite": "Lax",
+      "hostOnly": true,
+      "session": true
+    }
+  ],
+  "origins": [
+    {
+      "origin": "https://the-internet.herokuapp.com",
+      "localStorage": {},
+      "sessionStorage": {}
+    }
+  ]
+}

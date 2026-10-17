@@ -1,0 +1,45 @@
+{
+  "formatVersion": 1,
+  "capturedAt": "2026-10-17T00:45:54.942Z",
+  "site": {
+    "url": "https://www.saucedemo.com/inventory.html",
+    "title": "Swag Labs",
+    "domain": "www.saucedemo.com",
+    "favIconUrl": "https://www.saucedemo.com/favicon.ico"
+  },
+  "browser": {
+    "language": "en-US",
+    "platform": "MacIntel",
+    "screen": {
+      "height": 1117,
+      "width": 1728
+    },
+    "timezone": "America/New_York",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36"
+  },
+  "cookies": [
+    {
+      "name": "session-username",
+      "value": "standard_user",
+      "domain": "www.saucedemo.com",
+      "path": "/",
+      "secure": false,
+      "httpOnly": false,
+      "sameSite": "Lax",
+      "hostOnly": true,
+      "session": false,
+      "expirationDate": 1792198550
+    }
+  ],
+  "origins": [
+    {
+      "origin": "https://www.saucedemo.com",
+      "localStorage": {
+        "backtrace-guid": "182a1a14-3f0e-4ea8-9448-4c093f44545f",
+        "backtrace-last-active": "1792196325656",
+        "cart-contents": "[0,1,3]"
+      },
+      "sessionStorage": {}
+    }
+  ]
+}
