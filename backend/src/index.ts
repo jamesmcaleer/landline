@@ -6,14 +6,12 @@ import { approvalsRouter, startExpiryTimer } from "./routes/approvals.js";
 import { connectionsRouter } from "./routes/connections.js";
 import { dashboardServer, eventsRouter } from "./routes/events.js";
 import { getProvider } from "./browser/provider.js";
-import { loadSession } from "./browser/session.js";
 import { startScreencast } from "./agent/screencast.js";
 import { handleHubUpgrade, onAnyRelayConnected, relayRouter } from "./browser/relay-hub.js";
-import { onRelayReconnected, resolveApproval } from "./services.js";
+import { onRelayReconnected, reloadSession, resolveApproval } from "./services.js";
 import { approvals, connections, load, save } from "./store.js";
 
 load();
-await rehydrateConnections();
 
 /** Stored connections lost their browsers on restart. Start new ones and replay the saved sessions. */
 async function rehydrateConnections(): Promise<void> {
@@ -30,7 +28,7 @@ async function rehydrateConnections(): Promise<void> {
         connection.sandboxName = started.sandboxName;
         connection.sandboxToken = started.sandboxToken;
       }
-      connection.loggedIn = await loadSession(connection.cdpUrl, connection.session);
+      await reloadSession(connection.id); // shares the run the relay reconnect already started, if any
       startScreencast(connection.id, connection.cdpUrl);
       console.log(`Restored connection ${connection.id} (${connection.site.domain})`);
     } catch (err) {
@@ -67,3 +65,6 @@ const port = Number(process.env.PORT ?? 3000);
 server.listen(port, () => {
   console.log(`Landline backend listening on port ${port}`);
 });
+
+// Rehydrate after listening: a Chalk sandbox's relay has to reach this server before it can be reattached.
+await rehydrateConnections();

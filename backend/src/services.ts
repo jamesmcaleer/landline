@@ -83,9 +83,7 @@ export function reloadSession(connectionId: string): Promise<void> {
     save();
     emit({ type: "connection.ready", connectionId, loggedIn: connection.loggedIn });
     console.log(`Reloaded session for ${connectionId} (loggedIn=${connection.loggedIn})`);
-  })()
-    .catch((err) => console.error(`Could not reload session for ${connectionId}:`, err instanceof Error ? err.message : err))
-    .finally(() => reloads.delete(connectionId));
+  })().finally(() => reloads.delete(connectionId));
   reloads.set(connectionId, promise);
   return promise;
 }
@@ -99,7 +97,7 @@ export function onRelayReconnected(connectionId: string): void {
     console.log(`Relay for ${connectionId} reconnected while ${state}; not reloading the session`);
     return;
   }
-  void reloadSession(connectionId);
+  reloadSession(connectionId).catch((err) => console.error(`Could not reload session for ${connectionId}:`, err instanceof Error ? err.message : err));
 }
 
 export async function removeConnection(connectionId: string): Promise<void> {
