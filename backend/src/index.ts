@@ -1,6 +1,7 @@
 import "dotenv/config";
 import http from "node:http";
 import express from "express";
+import { actionsRouter } from "./routes/actions.js";
 import { approvalsRouter, startExpiryTimer } from "./routes/approvals.js";
 import { connectionsRouter } from "./routes/connections.js";
 import { attachDashboardSocket, eventsRouter } from "./routes/events.js";
@@ -36,6 +37,7 @@ const app = express();
 app.use(express.json({ limit: "5mb" }));
 app.use(connectionsRouter);
 app.use(approvalsRouter);
+app.use(actionsRouter);
 app.use(eventsRouter);
 
 const server = http.createServer(app);

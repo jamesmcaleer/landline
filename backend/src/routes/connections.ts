@@ -1,7 +1,6 @@
 import { Router } from "express";
 import type {
   ApiError,
-  Connection,
   ConfigResult,
   ConnectionResult,
   ConnectionsResult,
@@ -12,7 +11,7 @@ import type {
 } from "@landline/shared";
 import { getProvider } from "../browser/provider.js";
 import { loadSession } from "../browser/session.js";
-import { removeConnection } from "../services.js";
+import { removeConnection, toPublicConnection } from "../services.js";
 import { connections, emit, newId, save, type StoredConnection } from "../store.js";
 
 export const connectionsRouter = Router();
@@ -39,11 +38,6 @@ function isSessionExport(value: unknown): value is SessionExport {
     Array.isArray(value.cookies) &&
     Array.isArray(value.origins)
   );
-}
-
-/** The public view of a stored connection: no cdpUrl, no session. */
-export function toPublicConnection(c: StoredConnection): Connection {
-  return { id: c.id, site: c.site, loggedIn: c.loggedIn, createdAt: c.createdAt };
 }
 
 connectionsRouter.get("/config", (_req, res) => {
