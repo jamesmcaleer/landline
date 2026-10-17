@@ -81,6 +81,7 @@ The dashboard socket also carries live screencast frames `{type:"frame",connecti
 | `PUBLIC_URL` | Base URL for approval links, and the URL the agent uses to reach this server. Default `http://localhost:$PORT` |
 | `LANDLINE_PHONE` | Number shown by `GET /config` |
 | `BROWSER_PROVIDER` | `local` or `chalk` |
+| `DATA_FILE` | Where state is saved. Default `backend/data.json`. Set it to run a second backend in the same checkout |
 | `CALLBACK_URL` | Where the backend POSTs callbacks (below). Optional |
 | `FACTORY_API_KEY` | Factory key. The Droid SDK reads it from the environment |
 | `DROID_EXEC_PATH` | Overrides the `droid` binary. Default: `backend/bin/droid`, then `droid` on PATH |

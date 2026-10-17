@@ -7,7 +7,7 @@ export type StoredConnection = Omit<Connection, "state"> & { cdpUrl: string; ses
 export type StoredApproval = Approval & { tokenHash: string };
 export interface Passkey { credentialId: string; publicKey: string; counter: number }
 
-const DATA_FILE = fileURLToPath(new URL("../data.json", import.meta.url));
+const DATA_FILE = process.env.DATA_FILE ?? fileURLToPath(new URL("../data.json", import.meta.url));
 const MAX_EVENTS = 1000;
 const BASE62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
