@@ -140,6 +140,7 @@ Setup and environment variables are in [`backend/README.md`](backend/README.md).
 <table>
 <tr>
 <td width="50%" align="center" valign="top">
+<img src="docs/team/spacer.png" width="400" height="1" alt=""><br>
 <a href="https://www.linkedin.com/in/jamesmcaleer/"><img src="docs/team/james.png" alt="James McAleer" width="140"></a>
 <h3>James McAleer</h3>
 <sub>Chrome extension, Photon, voice agent, dashboard</sub>
@@ -147,6 +148,7 @@ Setup and environment variables are in [`backend/README.md`](backend/README.md).
 <a href="https://www.linkedin.com/in/jamesmcaleer/"><img src="docs/team/linkedin-connect.png" alt="Connect with James on LinkedIn" width="172"></a>
 </td>
 <td width="50%" align="center" valign="top">
+<img src="docs/team/spacer.png" width="400" height="1" alt=""><br>
 <a href="https://www.linkedin.com/in/caius-chevalier/"><img src="docs/team/caius.png" alt="Caius Chevalier" width="140"></a>
 <h3>Caius Chevalier</h3>
 <sub>Sandboxes/Chalk, Droid, approvals and passkeys</sub>
