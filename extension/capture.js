@@ -73,10 +73,17 @@ export async function captureSession(tab) {
 
   const url = new URL(tab.url);
 
-  // Cookies for the whole registrable domain, not just the exact host, so login
-  // subdomains (login.*, auth.*) come along. getAll with a bare domain returns
-  // that domain and its subdomains.
-  const cookies = await chrome.cookies.getAll({ domain: url.hostname });
+  // Two queries, merged. getAll({ domain }) returns cookies for this host and its
+  // subdomains (login.*, auth.*), but never a parent domain. getAll({ url }) returns
+  // every cookie the browser would send to this page, including parent-domain ones
+  // like ".bibliocommons.com" that sites share across subdomains.
+  const [hostCookies, pageCookies] = await Promise.all([
+    chrome.cookies.getAll({ domain: url.hostname }),
+    chrome.cookies.getAll({ url: tab.url }),
+  ]);
+  const byKey = new Map();
+  for (const c of [...hostCookies, ...pageCookies]) byKey.set(`${c.domain}|${c.path}|${c.name}`, c);
+  const cookies = [...byKey.values()];
 
   const [{ result: page }] = await chrome.scripting.executeScript({
     target: { tabId: tab.id },
