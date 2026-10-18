@@ -135,7 +135,23 @@ Setup and environment variables are in [`backend/README.md`](backend/README.md).
 - **Caregiver rules,** so routine writes can skip approval while bigger ones always ask: for example, a copay under $50 goes straight through, while any larger payment or a change to account settings waits for the caregiver.
 - **Pilots** with senior living communities and caregiver networks.
 
-## Team
+## Connect with the creators
 
-- **James McAleer:** Chrome extension, Photon, voice agent, dashboard
-- **Caius Chevalier:** sandboxes/Chalk, Droid, approvals and passkeys
+<table>
+<tr>
+<td width="50%" align="center" valign="top">
+<a href="https://www.linkedin.com/in/jamesmcaleer/"><img src="docs/team/james.png" alt="James McAleer" width="140"></a>
+<h3>James McAleer</h3>
+<sub>Chrome extension, Photon, voice agent, dashboard</sub>
+<br><br>
+<a href="https://www.linkedin.com/in/jamesmcaleer/"><img src="docs/team/linkedin-connect.png" alt="Connect with James on LinkedIn" width="172"></a>
+</td>
+<td width="50%" align="center" valign="top">
+<a href="https://www.linkedin.com/in/caius-chevalier/"><img src="docs/team/caius.png" alt="Caius Chevalier" width="140"></a>
+<h3>Caius Chevalier</h3>
+<sub>Sandboxes/Chalk, Droid, approvals and passkeys</sub>
+<br><br>
+<a href="https://www.linkedin.com/in/caius-chevalier/"><img src="docs/team/linkedin-connect.png" alt="Connect with Caius on LinkedIn" width="172"></a>
+</td>
+</tr>
+</table>
