@@ -1,6 +1,6 @@
-# Landline
-
-Text or call the websites you already use.
+<p align="center">
+  <img src="docs/banner.png" alt="Landline: the web, for the generation that only makes phone calls" width="100%">
+</p>
 
 ## Problem
 
