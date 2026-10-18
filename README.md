@@ -4,6 +4,8 @@
 
 <p align="center">
   Built in 36 hours at HackHarvard 2026 · <a href="https://devpost.com/software/landline-0rmti3">Devpost</a>
+  <br><br>
+  <a href="https://www.youtube.com/watch?v=KSIaknsXFEQ"><img src="docs/watch-demo.png" alt="Watch the Landline demo on YouTube" width="202"></a>
 </p>
 
 ## The problem
