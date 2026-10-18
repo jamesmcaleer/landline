@@ -2,7 +2,8 @@
 import type { ApprovalStatus, Connection } from "@landline/shared";
 import { createConnectionAgent, type ConnectionAgent } from "./agent/droid.js";
 import { stopScreencast } from "./agent/screencast.js";
-import { loadSession } from "./browser/session.js";
+import { loadSession, type BrowserIdentity } from "./browser/session.js";
+import { onRelayIdentity, type RelayIdentity } from "./browser/relay-hub.js";
 import { getProvider } from "./browser/provider.js";
 import { approvals, connections, emit, onEvent, save, type StoredConnection } from "./store.js";
 
@@ -70,6 +71,29 @@ export function toPublicConnection(c: StoredConnection): Connection {
   return { id: c.id, site: c.site, loggedIn: c.loggedIn, state: agents.get(c.id)?.state() ?? "idle", createdAt: c.createdAt };
 }
 
+const identities = new Map<string, Partial<RelayIdentity & BrowserIdentity>>();
+
+/** Merges what we learned about a connection's identity and emits connection.identity with defaults for what is still unknown. */
+export function mergeIdentity(connectionId: string, partial: Partial<RelayIdentity & BrowserIdentity>): void {
+  const merged = { ...identities.get(connectionId), ...partial };
+  identities.set(connectionId, merged);
+  // The relay can report before POST /connections stores the connection; keep it for the session-load merge.
+  if (!connections.has(connectionId)) return;
+  emit({
+    type: "connection.identity",
+    connectionId,
+    ip: merged.ip ?? "",
+    asn: merged.asn ?? "",
+    city: merged.city ?? "",
+    proxy: merged.proxy ?? "direct",
+    browser: merged.browser ?? "",
+    chMatch: merged.chMatch ?? false,
+    webdriver: merged.webdriver ?? false,
+  });
+}
+
+onRelayIdentity(mergeIdentity);
+
 const reloads = new Map<string, Promise<void>>();
 
 /** Loads the saved session again (a restarted sandbox has an empty profile) and emits connection.ready. */
@@ -79,9 +103,11 @@ export function reloadSession(connectionId: string): Promise<void> {
   const connection = connections.get(connectionId);
   if (!connection?.session) return Promise.resolve();
   const promise = (async () => {
-    connection.loggedIn = await loadSession(connection.cdpUrl, connection.session!);
+    const { loggedIn, identity } = await loadSession(connection.cdpUrl, connection.session!);
+    connection.loggedIn = loggedIn;
     save();
     emit({ type: "connection.ready", connectionId, loggedIn: connection.loggedIn });
+    mergeIdentity(connectionId, identity);
     console.log(`Reloaded session for ${connectionId} (loggedIn=${connection.loggedIn})`);
   })().finally(() => reloads.delete(connectionId));
   reloads.set(connectionId, promise);
@@ -105,6 +131,7 @@ export async function removeConnection(connectionId: string): Promise<void> {
   if (!connection) return;
   const agent = agents.get(connectionId);
   agents.delete(connectionId);
+  identities.delete(connectionId);
   stopScreencast(connectionId);
   await agent?.close().catch((err) => console.error(`Could not close agent for ${connectionId}:`, err));
   for (const approval of approvals.values()) {

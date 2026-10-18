@@ -5,7 +5,7 @@ import type { Approval, Connection, Event, EventEnvelope, SessionExport } from "
 
 export type StoredConnection = Omit<Connection, "state"> & { cdpUrl: string; session?: SessionExport; sandboxName?: string; sandboxToken?: string };
 export type StoredApproval = Approval & { tokenHash: string };
-export interface Passkey { credentialId: string; publicKey: string; counter: number }
+export interface Passkey { credentialId: string; publicKey: string; counter: number; rpId: string } // rpId: the host it was registered on
 
 const DATA_FILE = process.env.DATA_FILE ?? fileURLToPath(new URL("../data.json", import.meta.url));
 const MAX_EVENTS = 1000;
@@ -75,6 +75,13 @@ export function load(): void {
     for (const c of state.connections ?? []) connections.set(c.id, c);
     for (const a of state.approvals ?? []) approvals.set(a.id, a);
     passkey = state.passkey ?? null;
+    // A passkey only works on the host it was registered on. A new tunnel URL means a new host,
+    // so drop it and let the next approval register again instead of failing on every attempt.
+    const host = new URL(process.env.PUBLIC_URL ?? "http://localhost:3000").hostname;
+    if (passkey && passkey.rpId !== host) {
+      console.log(`Dropping passkey registered on ${passkey.rpId ?? "an unknown host"}; PUBLIC_URL is now ${host}`);
+      passkey = null;
+    }
     console.log(`Loaded ${connections.size} connections and ${approvals.size} approvals from data.json`);
   } catch (err) {
     console.error("Could not read data.json, starting empty:", err);

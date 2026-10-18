@@ -53,11 +53,25 @@ async function tryCommand(label: string, command: Promise<unknown>): Promise<voi
   }
 }
 
+/** What the loaded page sees of the browser: used by the dashboard to show the fingerprint is consistent. */
+export interface BrowserIdentity { browser: string; chMatch: boolean; webdriver: boolean }
+
+const IDENTITY_EXPRESSION = `({ webdriver: navigator.webdriver === true, brands: (navigator.userAgentData?.brands ?? []).map(b => b.brand), ua: navigator.userAgent })`;
+
+function toBrowserIdentity(seen: { webdriver: boolean; brands: string[]; ua: string }): BrowserIdentity {
+  const major = /Chrome\/(\d+)/.exec(seen.ua)?.[1] ?? "";
+  const chrome = seen.brands.includes("Google Chrome");
+  const headless = seen.ua.includes("HeadlessChrome");
+  const name = chrome ? "Google Chrome" : headless ? "HeadlessChrome" : "Chromium";
+  return { browser: `${name} ${major}`.trim(), chMatch: chrome && !headless, webdriver: seen.webdriver };
+}
+
 /**
  * Loads a captured session into the Chromium at `cdpUrl` and opens the saved page.
- * Returns whether the site still looks logged in. The browser stays open.
+ * Returns whether the site still looks logged in, and how the browser presents itself.
+ * The browser stays open.
  */
-export async function loadSession(cdpUrl: string, session: SessionExport): Promise<boolean> {
+export async function loadSession(cdpUrl: string, session: SessionExport): Promise<{ loggedIn: boolean; identity: BrowserIdentity }> {
   const cdp = await CdpClient.connect(cdpUrl);
   try {
     const sessionId = await cdp.attachToPage();
@@ -88,7 +102,12 @@ export async function loadSession(cdpUrl: string, session: SessionExport): Promi
       result: { value?: unknown };
     };
     const finalUrl = String(evaluated.result.value ?? "").toLowerCase();
-    return !LOGIN_URL_HINTS.some((hint) => finalUrl.includes(hint));
+    const loggedIn = !LOGIN_URL_HINTS.some((hint) => finalUrl.includes(hint));
+
+    const seen = (await page("Runtime.evaluate", { expression: IDENTITY_EXPRESSION, returnByValue: true })) as {
+      result: { value: { webdriver: boolean; brands: string[]; ua: string } };
+    };
+    return { loggedIn, identity: toBrowserIdentity(seen.result.value) };
   } finally {
     // Closes only our websocket; the browser and its page stay open.
     cdp.close();

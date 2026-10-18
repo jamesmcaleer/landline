@@ -40,6 +40,30 @@ const APPROVAL_WAIT_MS = 6 * 60 * 1000;
 const AGENTS_MD = `You operate one website for one user through the Playwright MCP browser tools. The browser is already logged in; never log in or ask for a password. Read anything freely. Before any action that changes something on the site (a payment, a plan change, an order, a setting), call request_approval with a one-line plain-English summary that names what will change and the new value (for example "Change your first name from James to Jame"), and stop if the decision is not approved. network.jsonl in this directory records every XHR and fetch request with bodies; prefer grepping or writing a short script over it to extract data instead of reading pages. If you need information from the user, call ask_user and end your turn. Keep answers short and in plain English for a non-technical person.
 `;
 
+const PLAYWRIGHT_PREFIX = "playwright___";
+const MUTATING_TOOLS = new Set([
+  "browser_click",
+  "browser_type",
+  "browser_fill_form",
+  "browser_select_option",
+  "browser_press_key",
+  "browser_file_upload",
+  "browser_drag",
+  "browser_handle_dialog",
+]);
+
+/** A short human string for what a Playwright tool call is aimed at. */
+function actionTarget(input: unknown): string {
+  const i = (typeof input === "object" && input !== null ? input : {}) as Record<string, unknown>;
+  for (const key of ["element", "url", "text", "values", "key"]) {
+    const v = i[key];
+    if (v === undefined || v === null || v === "") continue;
+    const text = typeof v === "string" ? v : JSON.stringify(v);
+    return text.length > 80 ? text.slice(0, 79) + "…" : text;
+  }
+  return "";
+}
+
 function selfUrl(): string {
   return process.env.PUBLIC_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
 }
@@ -61,7 +85,7 @@ export async function createConnectionAgent(opts: { connectionId: string; cdpUrl
 
   mkdirSync(workDir, { recursive: true });
   writeFileSync(`${workDir}AGENTS.md`, AGENTS_MD);
-  const stopNetworkLog = await startNetworkLog(cdpUrl, `${workDir}network.jsonl`).catch((err) => {
+  const stopNetworkLog = await startNetworkLog(cdpUrl, `${workDir}network.jsonl`, connectionId).catch((err) => {
     console.error(`[${connectionId}] network log not started:`, err instanceof Error ? err.message : err);
     return () => {};
   });
@@ -70,6 +94,7 @@ export async function createConnectionAgent(opts: { connectionId: string; cdpUrl
   let lastStep: string | null = null;
   let turnActive = false;
   let askedThisTurn = false;
+  let approvedThisTurn = false; // the user approved a request_approval during the current turn
   let closed = false;
   let cancelled = false; // set by stop() or timeout during the current turn
 
@@ -117,6 +142,7 @@ export async function createConnectionAgent(opts: { connectionId: string; cdpUrl
             if (state === "waiting_approval") state = "working";
           }
           if (status === "pending") return JSON.stringify({ decision: "declined", message: "no answer in time" });
+          if (status === "approved") approvedThisTurn = true;
           return JSON.stringify({ decision: status, message });
         },
       ),
@@ -178,10 +204,12 @@ export async function createConnectionAgent(opts: { connectionId: string; cdpUrl
       if (closed || turnActive || (state !== "idle" && state !== "waiting_user")) throw new Error("busy");
       turnActive = true;
       askedThisTurn = false;
+      approvedThisTurn = false;
       cancelled = false;
       state = "working";
       const startedAt = Date.now();
       log("turn start:", shortArgs(query));
+      emit({ type: "task.started", connectionId, text: query });
       const timer = setTimeout(() => {
         cancelled = true;
         log("turn timed out");
@@ -205,6 +233,11 @@ export async function createConnectionAgent(opts: { connectionId: string; cdpUrl
               case DroidMessageType.ToolCall:
                 log("tool call:", message.name, shortArgs(message.input));
                 step(`${message.name}: ${shortArgs(message.input)}`);
+                if (message.name.startsWith(PLAYWRIGHT_PREFIX)) {
+                  const name = message.name.slice(PLAYWRIGHT_PREFIX.length);
+                  // Gating is instruction-based, so "write" means: a mutating tool after the user approved something this turn.
+                  emit({ type: "agent.action", connectionId, tool: name, target: actionTarget(message.input), write: MUTATING_TOOLS.has(name) && approvedThisTurn });
+                }
                 break;
               case DroidMessageType.Error:
                 log("error event:", message.message);
@@ -229,7 +262,8 @@ export async function createConnectionAgent(opts: { connectionId: string; cdpUrl
         if (failure) {
           emit({ type: "task.error", connectionId, text: failure });
           await sendCallback({ connectionId, type: "error", text: failure });
-        } else if (finalText) {
+        } else if (finalText && !askedThisTurn) {
+          // A turn that asked the caller something ends on that question; a closing remark would replace it.
           emit({ type: "task.done", connectionId, text: finalText });
           await sendCallback({ connectionId, type: "result", text: finalText });
         }

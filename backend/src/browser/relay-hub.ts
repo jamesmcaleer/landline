@@ -4,7 +4,7 @@
 // Clients (Playwright MCP, our CDP client) connect to /cdp/:id and each gets a channel
 // multiplexed over that one relay socket.
 //
-// Frames are JSON text. relay -> hub: hello {chromium}, msg {ch,d}, close {ch}, ping, pong.
+// Frames are JSON text. relay -> hub: hello {chromium}, identity {ip,asn,city,proxy}, msg {ch,d}, close {ch}, ping, pong.
 // hub -> relay: open {ch}, msg {ch,d}, close {ch}, ping, pong.
 
 import { createHash, timingSafeEqual } from "node:crypto";
@@ -56,6 +56,15 @@ const anyConnectedListeners = new Set<(connectionId: string) => void>();
 /** Like onRelayConnected, for every connection. */
 export function onAnyRelayConnected(fn: (connectionId: string) => void): void {
   anyConnectedListeners.add(fn);
+}
+
+export interface RelayIdentity { ip: string; asn: string; city: string; proxy: "residential" | "direct" }
+
+const identityListeners = new Set<(connectionId: string, identity: RelayIdentity) => void>();
+
+/** Calls `fn` when a relay reports the network identity (exit IP, ASN, city) of its sandbox. */
+export function onRelayIdentity(fn: (connectionId: string, identity: RelayIdentity) => void): void {
+  identityListeners.add(fn);
 }
 
 /** Resolves when the relay is connected, rejects after `timeoutMs`. */
@@ -121,7 +130,7 @@ function attachRelay(connectionId: string, socket: WebSocket): void {
   relays.set(connectionId, relay);
 
   socket.on("message", (data) => {
-    let m: { t?: string; ch?: number; d?: string; chromium?: Record<string, unknown> };
+    let m: { t?: string; ch?: number; d?: string; chromium?: Record<string, unknown>; ip?: string; asn?: string; city?: string; proxy?: string };
     try {
       m = JSON.parse(data.toString());
     } catch {
@@ -135,6 +144,20 @@ function attachRelay(connectionId: string, socket: WebSocket): void {
           fn();
         } catch (err) {
           console.error("relay listener threw:", err);
+        }
+      }
+    } else if (m.t === "identity") {
+      const identity: RelayIdentity = {
+        ip: String(m.ip ?? ""),
+        asn: String(m.asn ?? ""),
+        city: String(m.city ?? ""),
+        proxy: m.proxy === "residential" ? "residential" : "direct",
+      };
+      for (const fn of identityListeners) {
+        try {
+          fn(connectionId, identity);
+        } catch (err) {
+          console.error("identity listener threw:", err);
         }
       }
     } else if (m.t === "ping") {

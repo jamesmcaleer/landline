@@ -2,7 +2,7 @@
 
 Dials the Landline backend over WebSocket and multiplexes CDP connections over it.
 Frames are JSON text:
-  relay -> backend: {"t":"hello","chromium":{...}}  {"t":"msg","ch":N,"d":"<cdp json>"}  {"t":"close","ch":N}  {"t":"ping"}  {"t":"pong"}
+  relay -> backend: {"t":"hello","chromium":{...}}  {"t":"identity","ip":..,"asn":..,"city":..,"proxy":"residential|direct"}  {"t":"msg","ch":N,"d":"<cdp json>"}  {"t":"close","ch":N}  {"t":"ping"}  {"t":"pong"}
   backend -> relay: {"t":"open","ch":N}  {"t":"msg","ch":N,"d":"..."}  {"t":"close","ch":N}  {"t":"ping"}  {"t":"pong"}
 """
 import asyncio
@@ -17,6 +17,8 @@ WS_URL = os.environ["LANDLINE_WS_URL"]
 TOKEN = os.environ["LANDLINE_TOKEN"]
 VERSION_URL = "http://127.0.0.1:9222/json/version"
 PING_EVERY = 20
+IDENTITY_URL = "https://ipinfo.io/json"
+LOCAL_PROXY = "http://127.0.0.1:3128"
 
 
 def log(*args):
@@ -26,6 +28,16 @@ def log(*args):
 def fetch_version():
     with urllib.request.urlopen(VERSION_URL, timeout=5) as r:
         return json.loads(r.read())
+
+
+def fetch_identity():
+    """Exit IP of this sandbox as the internet sees it: through the local proxy forwarder when there is one."""
+    residential = bool(os.environ.get("PROXY_UPSTREAM"))
+    handlers = [urllib.request.ProxyHandler({"https": LOCAL_PROXY})] if residential else []
+    with urllib.request.build_opener(*handlers).open(IDENTITY_URL, timeout=8) as r:
+        info = json.loads(r.read())
+    city = ", ".join(p for p in (info.get("city"), info.get("region")) if p)
+    return {"t": "identity", "ip": info.get("ip", ""), "asn": info.get("org", ""), "city": city, "proxy": "residential" if residential else "direct"}
 
 
 async def session():
@@ -42,6 +54,14 @@ async def session():
 
         async def send(obj):
             await ws.send(json.dumps(obj))
+
+        async def send_identity():
+            try:
+                await send(await asyncio.to_thread(fetch_identity))
+            except Exception as err:
+                log("identity lookup failed:", err)
+
+        identity_task = asyncio.create_task(send_identity())
 
         async def pump(ch, local):
             try:
@@ -105,6 +125,7 @@ async def session():
                     asyncio.create_task(shut())
         finally:
             hb.cancel()
+            identity_task.cancel()
             for local, task in list(channels.values()):
                 task.cancel()
                 await local.close()

@@ -69,12 +69,15 @@ function createMcpServer(): McpServer {
         "pending: nothing new yet; call wait_result again.",
       inputSchema: {
         connectionId: z.string().describe("The id from list_connections"),
-        timeoutSeconds: z.number().min(1).max(25).optional().describe("Seconds to wait, default 25, maximum 25"),
+        // Not bounded in the schema: an out-of-range value would fail the whole call before it runs.
+        timeoutSeconds: z.coerce.number().optional().describe("Seconds to wait, default 25, maximum 25"),
       },
     },
     async ({ connectionId, timeoutSeconds }) => {
       if (!connections.has(connectionId)) return text({ error: "connection not found" }, true);
-      const event = await waitForTurnEvent(connectionId, Math.min(timeoutSeconds ?? 25, 25) * 1000);
+      const seconds = Math.min(Math.max(Number.isFinite(timeoutSeconds) ? timeoutSeconds! : 25, 1), 25);
+      const event = await waitForTurnEvent(connectionId, seconds * 1000);
+      console.log(`[${connectionId}] MCP wait_result (${timeoutSeconds ?? "default"}s) -> ${event?.kind ?? "pending"}`);
       return text(event ?? { kind: "pending" });
     },
   );
