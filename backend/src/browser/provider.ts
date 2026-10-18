@@ -6,8 +6,17 @@ import { chromium } from "playwright";
 import { ChalkProvider } from "./chalk.js";
 
 /** Gives each connection its own browser, reachable over CDP. */
+export interface StartedBrowser {
+  cdpUrl: string;
+  /** Remote providers only: what is needed to reattach after a backend restart. */
+  sandboxName?: string;
+  sandboxToken?: string;
+}
+
 export interface BrowserProvider {
-  start(connectionId: string): Promise<{ cdpUrl: string }>;
+  start(connectionId: string): Promise<StartedBrowser>;
+  /** Reattach to a browser that outlived the backend. Providers without one do not implement this. */
+  resume?(connectionId: string, sandboxName: string, token: string): Promise<StartedBrowser>;
   stop(connectionId: string): Promise<void>;
 }
 

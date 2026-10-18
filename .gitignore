@@ -11,3 +11,4 @@ CLAUDE.md
 backend/data.json
 backend/work
 backend/bin
+backend/sandbox/.venv

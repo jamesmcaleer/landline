@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type { ApiError, SendActionArgs, SendActionResult, StopActionArgs } from "@landline/shared";
-import { getAgent, peekAgent } from "../services.js";
+import { peekAgent, sendAction, waitForTurnEvent } from "../services.js";
 import { connections } from "../store.js";
 
 export const actionsRouter = Router();
@@ -21,8 +21,7 @@ actionsRouter.post("/actions", async (req, res) => {
     return;
   }
   try {
-    const agent = await getAgent(args.connectionId);
-    await agent.send(args.query.trim());
+    await sendAction(args.connectionId, args.query.trim());
   } catch (err) {
     if (err instanceof Error && err.message === "busy") {
       res.status(409).json({ error: "action in progress" } satisfies ApiError);
@@ -50,4 +49,15 @@ actionsRouter.post("/actions/stop", async (req, res) => {
   }
   await peekAgent(args.connectionId)?.stop();
   res.status(204).end();
+});
+
+actionsRouter.get("/actions/wait", async (req, res) => {
+  const connectionId = typeof req.query.connectionId === "string" ? req.query.connectionId : "";
+  if (!connections.has(connectionId)) {
+    res.status(404).json({ error: "connection not found" } satisfies ApiError);
+    return;
+  }
+  const requested = Number(req.query.timeout ?? 25000);
+  const timeout = Number.isFinite(requested) ? Math.min(Math.max(requested, 0), 25000) : 25000;
+  res.json({ event: await waitForTurnEvent(connectionId, timeout) });
 });

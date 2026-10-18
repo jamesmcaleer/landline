@@ -9,9 +9,10 @@ import type {
   SessionUploadArgs,
   Site,
 } from "@landline/shared";
-import { getProvider } from "../browser/provider.js";
-import { loadSession } from "../browser/session.js";
-import { removeConnection, toPublicConnection } from "../services.js";
+import { startScreencast } from "../agent/screencast.js";
+import { getProvider, type StartedBrowser } from "../browser/provider.js";
+import { loadSession, type BrowserIdentity } from "../browser/session.js";
+import { mergeIdentity, removeConnection, toPublicConnection } from "../services.js";
 import { connections, emit, newId, save, type StoredConnection } from "../store.js";
 
 export const connectionsRouter = Router();
@@ -56,9 +57,9 @@ connectionsRouter.post("/connections", async (req, res) => {
   const args: CreateConnectionArgs = { site };
 
   const id = newId("con");
-  let cdpUrl: string;
+  let started: StartedBrowser;
   try {
-    ({ cdpUrl } = await getProvider().start(id));
+    started = await getProvider().start(id);
   } catch (err) {
     console.error("Could not start browser:", err);
     res.status(500).json({ error: "could not start browser" } satisfies ApiError);
@@ -70,11 +71,13 @@ connectionsRouter.post("/connections", async (req, res) => {
     site: args.site,
     loggedIn: null,
     createdAt: new Date().toISOString(),
-    cdpUrl,
+    cdpUrl: started.cdpUrl,
+    ...(started.sandboxName ? { sandboxName: started.sandboxName, sandboxToken: started.sandboxToken } : {}),
   };
   connections.set(id, connection);
   save();
   emit({ type: "connection.created", connectionId: id, site: args.site.domain });
+  startScreencast(id, connection.cdpUrl);
   res.status(201).json({ connection: toPublicConnection(connection) } satisfies ConnectionResult);
 });
 
@@ -92,8 +95,9 @@ connectionsRouter.put("/connections/:id/session", async (req, res) => {
   const args = body as unknown as SessionUploadArgs;
 
   let loggedIn: boolean;
+  let identity: BrowserIdentity;
   try {
-    loggedIn = await loadSession(connection.cdpUrl, args.session);
+    ({ loggedIn, identity } = await loadSession(connection.cdpUrl, args.session));
   } catch (err) {
     console.error("Could not load session:", err);
     res.status(500).json({ error: "could not load session into browser" } satisfies ApiError);
@@ -109,6 +113,7 @@ connectionsRouter.put("/connections/:id/session", async (req, res) => {
   connection.session = args.session;
   save();
   emit({ type: "connection.ready", connectionId: connection.id, loggedIn });
+  mergeIdentity(connection.id, identity);
   res.json({ connection: toPublicConnection(connection) } satisfies ConnectionResult);
 });
 

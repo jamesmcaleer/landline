@@ -1,5 +1,7 @@
 import { appendFileSync } from "node:fs";
+import type { NetworkFrame } from "@landline/shared";
 import { CdpClient } from "../browser/cdp.js";
+import { broadcastDashboard, hasDashboardClients } from "../routes/events.js";
 
 const MAX_BODY_BYTES = 200 * 1024;
 const LOGGED_TYPES = new Set(["XHR", "Fetch", "Document"]);
@@ -9,6 +11,7 @@ interface RequestInfo {
   url: string;
   headers: Record<string, string>;
   postData: string | null;
+  startedAt: number; // CDP monotonic seconds
 }
 
 function truncate(text: string | null): { text: string | null; truncated: boolean } {
@@ -17,11 +20,30 @@ function truncate(text: string | null): { text: string | null; truncated: boolea
   return { text: Buffer.from(text).subarray(0, MAX_BODY_BYTES).toString(), truncated: true };
 }
 
+/** Milliseconds between two CDP timing offsets, 0 when either is missing (-1) or the span is negative. */
+function span(start: number | undefined, end: number | undefined): number {
+  if (start === undefined || end === undefined || start < 0 || end < 0) return 0;
+  return Math.max(0, Math.round(end - start));
+}
+
+/** Phase durations. CDP timing offsets are ms relative to t.requestTime (seconds); finishedAt is CDP seconds. */
+function toTiming(t: any, finishedAt: number): NetworkFrame["timing"] {
+  if (!t) return null;
+  return {
+    dns: span(t.dnsStart, t.dnsEnd),
+    connect: span(t.connectStart, t.connectEnd),
+    tls: span(t.sslStart, t.sslEnd),
+    wait: span(t.sendEnd, t.receiveHeadersEnd),
+    download: t.receiveHeadersEnd >= 0 ? Math.max(0, Math.round((finishedAt - t.requestTime) * 1000 - t.receiveHeadersEnd)) : 0,
+  };
+}
+
 /**
  * Records XHR, Fetch and Document traffic of every page in the browser to `outFile`
- * (one JSON line per response). Returns a function that stops recording.
+ * (one JSON line per response). Every finished request of any type is also sent to the
+ * dashboard as a NetworkFrame. Returns a function that stops recording.
  */
-export async function startNetworkLog(cdpUrl: string, outFile: string): Promise<() => void> {
+export async function startNetworkLog(cdpUrl: string, outFile: string, connectionId: string): Promise<() => void> {
   const cdp = await CdpClient.connect(cdpUrl);
   const requests = new Map<string, RequestInfo>(); // key: sessionId + requestId
   const attached = new Set<string>(); // target ids
@@ -45,12 +67,13 @@ export async function startNetworkLog(cdpUrl: string, outFile: string): Promise<
       url: p.request?.url,
       headers: p.request?.headers ?? {},
       postData: p.request?.postData ?? null,
+      startedAt: p.timestamp,
     });
   });
 
-  const responses = new Map<string, { status: number; mimeType: string; type: string }>();
+  const responses = new Map<string, { status: number; mimeType: string; type: string; timing: unknown }>();
   cdp.on("Network.responseReceived", (p, sid) => {
-    responses.set(`${sid}:${p.requestId}`, { status: p.response?.status, mimeType: p.response?.mimeType, type: p.type });
+    responses.set(`${sid}:${p.requestId}`, { status: p.response?.status, mimeType: p.response?.mimeType, type: p.type, timing: p.response?.timing });
   });
 
   cdp.on("Network.loadingFinished", (p, sid) => {
@@ -59,7 +82,26 @@ export async function startNetworkLog(cdpUrl: string, outFile: string): Promise<
     const response = responses.get(key);
     requests.delete(key);
     responses.delete(key);
-    if (stopped || !request || !response || !LOGGED_TYPES.has(response.type)) return;
+    if (stopped || !request || !response) return;
+    if (hasDashboardClients() && !request.url?.startsWith("data:")) {
+      const ms = Math.max(0, Math.round((p.timestamp - request.startedAt) * 1000));
+      const frame: NetworkFrame = {
+        type: "net",
+        connectionId,
+        id: key,
+        ts: new Date().toISOString(),
+        method: request.method,
+        url: request.url,
+        status: response.status,
+        resourceType: response.type,
+        mimeType: response.mimeType,
+        ms,
+        size: p.encodedDataLength ?? 0,
+        timing: toTiming(response.timing, p.timestamp),
+      };
+      broadcastDashboard(frame);
+    }
+    if (!LOGGED_TYPES.has(response.type)) return;
     void (async () => {
       let body: string | null = null;
       try {
